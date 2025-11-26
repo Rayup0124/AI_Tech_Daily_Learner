@@ -14,7 +14,7 @@ from bs4 import BeautifulSoup
 HN_TOP_STORIES_URL = "https://hacker-news.firebaseio.com/v0/topstories.json"
 HN_ITEM_URL = "https://hacker-news.firebaseio.com/v0/item/{story_id}.json"
 MAX_ARTICLES = 5
-MAX_ARTICLE_CHARS = 3500
+MAX_ARTICLE_CHARS = 2000
 NOTION_API_URL = "https://api.notion.com/v1/pages"
 NOTION_VERSION = "2022-06-28"
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
@@ -123,7 +123,7 @@ def summarize_article(
         ],
         generation_config=GenerationConfig(
             temperature=0.4,
-            max_output_tokens=512,
+            max_output_tokens=256,
             response_mime_type="application/json",
         ),
     )
