@@ -160,7 +160,11 @@ def extract_json(raw_text: str) -> Dict[str, Any]:
 
 
 def extract_response_text(response: Any) -> str:
-    text_attr = getattr(response, "text", None)
+    text_attr: Optional[str] = None
+    try:
+        text_attr = getattr(response, "text", None)
+    except ValueError:
+        text_attr = None
     if isinstance(text_attr, str) and text_attr.strip():
         return text_attr.strip()
 
