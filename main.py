@@ -183,9 +183,9 @@ def extract_response_text(response: Any) -> str:
         return "\n".join(collected)
 
     finish_reasons = {
-        getattr(candidate, "finish_reason", None)
+        str(getattr(candidate, "finish_reason"))
         for candidate in candidates
-        if getattr(candidate, "finish_reason", None)
+        if getattr(candidate, "finish_reason", None) is not None
     }
     reasons_msg = ", ".join(sorted(finish_reasons)) or "unknown"
     raise RuntimeError(f"Gemini returned no textual parts (finish_reason={reasons_msg}).")
