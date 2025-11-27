@@ -59,12 +59,45 @@
             border-radius: 12px;
             padding: 24px;
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            transition: transform 0.2s, box-shadow 0.2s;
+            transition: transform 0.2s, box-shadow 0.2s, opacity 0.2s;
+            position: relative;
         }
 
         .article-card:hover {
             transform: translateY(-4px);
             box-shadow: 0 8px 12px rgba(0,0,0,0.15);
+        }
+
+        .article-card.read {
+            opacity: 0.6;
+        }
+
+        .read-button {
+            position: absolute;
+            bottom: 16px;
+            right: 16px;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border: 2px solid #667eea;
+            background: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            font-size: 18px;
+        }
+
+        .read-button:hover {
+            background: #f0f0f0;
+            transform: scale(1.1);
+        }
+
+        .read-button.read {
+            background: #667eea;
+            border-color: #667eea;
+            color: white;
         }
 
         .article-header {
@@ -184,14 +217,20 @@
                     return;
                 }
 
+                // Load read status from localStorage
+                const readArticles = JSON.parse(localStorage.getItem('readArticles') || '{}');
+
                 articlesEl.innerHTML = articles.map(article => {
                     const date = article.date ? new Date(article.date).toLocaleDateString('zh-CN') : '';
                     const keywordsHtml = article.keywords.map(kw => 
                         `<span class="keyword-tag">${kw}</span>`
                     ).join('');
+                    const isRead = readArticles[article.url] || false;
+                    const cardClass = isRead ? 'article-card read' : 'article-card';
+                    const buttonClass = isRead ? 'read-button read' : 'read-button';
 
                     return `
-                        <div class="article-card">
+                        <div class="${cardClass}" data-url="${article.url}">
                             <div class="article-header">
                                 <div style="flex: 1;">
                                     <h2 class="article-title">
@@ -205,6 +244,9 @@
                             </div>
                             <div class="article-summary">${article.summary || ''}</div>
                             ${keywordsHtml ? `<div class="keywords">${keywordsHtml}</div>` : ''}
+                            <button class="${buttonClass}" onclick="toggleRead('${article.url}')" title="${isRead ? '标记为未读' : '标记为已读'}">
+                                ${isRead ? '✓' : ''}
+                            </button>
                         </div>
                     `;
                 }).join('');
@@ -214,6 +256,28 @@
                 loadingEl.style.display = 'none';
                 errorEl.textContent = `加载失败: ${error.message}`;
                 errorEl.style.display = 'block';
+            }
+        }
+
+        function toggleRead(url) {
+            const readArticles = JSON.parse(localStorage.getItem('readArticles') || '{}');
+            readArticles[url] = !readArticles[url];
+            localStorage.setItem('readArticles', JSON.stringify(readArticles));
+            
+            // Update UI
+            const card = document.querySelector(`.article-card[data-url="${url}"]`);
+            const button = card.querySelector('.read-button');
+            
+            if (readArticles[url]) {
+                card.classList.add('read');
+                button.classList.add('read');
+                button.innerHTML = '✓';
+                button.title = '标记为未读';
+            } else {
+                card.classList.remove('read');
+                button.classList.remove('read');
+                button.innerHTML = '';
+                button.title = '标记为已读';
             }
         }
 
