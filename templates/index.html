@@ -196,7 +196,7 @@
         <header>
             <h1>🚀 AI Tech Daily Learner</h1>
             <p class="subtitle">每日精选技术文章摘要</p>
-            <p class="privacy-note">💡 已读状态仅保存在您的浏览器中，不会影响其他用户</p>
+            <p class="privacy-note">💡 已读状态仅保存在您的设备浏览器中，每个设备独立存储</p>
         </header>
 
         <div id="loading" class="loading">加载中...</div>
@@ -226,8 +226,9 @@
                     return;
                 }
 
-                // Load read status from localStorage
-                const readArticles = JSON.parse(localStorage.getItem('readArticles') || '{}');
+                // Load read status from localStorage (device-specific)
+                const readArticlesKey = 'readArticles_' + getDeviceId();
+                const readArticles = JSON.parse(localStorage.getItem(readArticlesKey) || '{}');
 
                 articlesEl.innerHTML = articles.map(article => {
                     const date = article.date ? new Date(article.date).toLocaleDateString('zh-CN') : '';
@@ -268,10 +269,46 @@
             }
         }
 
+        // Generate a unique device ID (based on browser fingerprint)
+        function getDeviceId() {
+            let deviceId = localStorage.getItem('deviceId');
+            if (!deviceId) {
+                // Create a unique ID based on browser characteristics
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                ctx.textBaseline = 'top';
+                ctx.font = '14px Arial';
+                ctx.fillText('Device fingerprint', 2, 2);
+                const fingerprint = [
+                    navigator.userAgent,
+                    navigator.language,
+                    screen.width + 'x' + screen.height,
+                    new Date().getTimezoneOffset(),
+                    canvas.toDataURL()
+                ].join('|');
+                
+                // Simple hash function
+                let hash = 0;
+                for (let i = 0; i < fingerprint.length; i++) {
+                    const char = fingerprint.charCodeAt(i);
+                    hash = ((hash << 5) - hash) + char;
+                    hash = hash & hash; // Convert to 32bit integer
+                }
+                deviceId = 'device_' + Math.abs(hash).toString(36);
+                localStorage.setItem('deviceId', deviceId);
+            }
+            return deviceId;
+        }
+
+        function getReadArticlesKey() {
+            return 'readArticles_' + getDeviceId();
+        }
+
         function toggleRead(url) {
-            const readArticles = JSON.parse(localStorage.getItem('readArticles') || '{}');
+            const key = getReadArticlesKey();
+            const readArticles = JSON.parse(localStorage.getItem(key) || '{}');
             readArticles[url] = !readArticles[url];
-            localStorage.setItem('readArticles', JSON.stringify(readArticles));
+            localStorage.setItem(key, JSON.stringify(readArticles));
             
             // Update UI
             const card = document.querySelector(`.article-card[data-url="${url}"]`);
