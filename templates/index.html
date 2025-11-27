@@ -230,7 +230,7 @@
                 const readArticlesKey = 'readArticles_' + getDeviceId();
                 const readArticles = JSON.parse(localStorage.getItem(readArticlesKey) || '{}');
 
-                articlesEl.innerHTML = articles.map(article => {
+                articlesEl.innerHTML = articles.map((article, index) => {
                     const date = article.date ? new Date(article.date).toLocaleDateString('zh-CN') : '';
                     const keywordsHtml = article.keywords.map(kw => 
                         `<span class="keyword-tag">${kw}</span>`
@@ -238,9 +238,11 @@
                     const isRead = readArticles[article.url] || false;
                     const cardClass = isRead ? 'article-card read' : 'article-card';
                     const buttonClass = isRead ? 'read-button read' : 'read-button';
+                    // Encode URL to avoid special character issues
+                    const urlEncoded = encodeURIComponent(article.url);
 
                     return `
-                        <div class="${cardClass}" data-url="${article.url}">
+                        <div class="${cardClass}" data-url="${urlEncoded}" data-index="${index}">
                             <div class="article-header">
                                 <div style="flex: 1;">
                                     <h2 class="article-title">
@@ -254,7 +256,7 @@
                             </div>
                             <div class="article-summary">${article.summary || ''}</div>
                             ${keywordsHtml ? `<div class="keywords">${keywordsHtml}</div>` : ''}
-                            <button class="${buttonClass}" onclick="toggleRead('${article.url}')" title="${isRead ? '标记为未读' : '标记为已读'}">
+                            <button class="${buttonClass}" onclick="toggleRead(${index}, '${urlEncoded}')" title="${isRead ? '标记为未读' : '标记为已读'}">
                                 ${isRead ? '✓' : ''}
                             </button>
                         </div>
@@ -304,14 +306,18 @@
             return 'readArticles_' + getDeviceId();
         }
 
-        function toggleRead(url) {
+        function toggleRead(index, urlEncoded) {
+            // Decode URL to get the original URL
+            const url = decodeURIComponent(urlEncoded);
             const key = getReadArticlesKey();
             const readArticles = JSON.parse(localStorage.getItem(key) || '{}');
             readArticles[url] = !readArticles[url];
             localStorage.setItem(key, JSON.stringify(readArticles));
             
-            // Update UI
-            const card = document.querySelector(`.article-card[data-url="${url}"]`);
+            // Update UI using index for reliable selection
+            const card = document.querySelector(`.article-card[data-index="${index}"]`);
+            if (!card) return; // Safety check
+            
             const button = card.querySelector('.read-button');
             
             if (readArticles[url]) {
