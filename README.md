@@ -7,6 +7,19 @@ Python automation that grabs the latest Hacker News highlights, asks Google Gemi
 - Uses Gemini `gemini-1.5-flash` to create Chinese key points, bilingual keywords, an English one-liner, and a 1–5 tech score.
 - Pushes the content into Notion with clean formatting and emoji accents.
 - Resilient pipeline: skips items that fail to download, sanitize, summarize, or upload.
+- **Web Dashboard**: View all articles in a beautiful web interface with read/unread tracking.
+
+## 🌐 View Articles Online
+
+Visit the live web dashboard to browse all articles:
+
+**👉 [https://ai-tech-daily-learner.vercel.app/](https://ai-tech-daily-learner.vercel.app/)**
+
+Features:
+- Clean, responsive card-based layout
+- Mark articles as read/unread (saved in browser)
+- Auto-refreshes every 5 minutes
+- Shows article summaries, keywords, scores, and dates
 
 ## 1. Prerequisites
 - Python 3.9+
