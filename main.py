@@ -191,11 +191,45 @@ def extract_response_text(response: Any) -> str:
     raise RuntimeError(f"Gemini returned no textual parts (finish_reason={reasons_msg}).")
 
 
+def check_url_exists(notion_token: str, database_id: str, url: str) -> bool:
+    """Check if an article with the same URL already exists in Notion."""
+    headers = {
+        "Authorization": f"Bearer {notion_token}",
+        "Notion-Version": NOTION_VERSION,
+        "Content-Type": "application/json",
+    }
+
+    query_url = f"https://api.notion.com/v1/databases/{database_id}/query"
+    data = {
+        "filter": {
+            "property": "URL",
+            "url": {
+                "equals": url,
+            },
+        },
+        "page_size": 1,
+    }
+
+    try:
+        response = requests.post(query_url, headers=headers, json=data, timeout=10)
+        if response.status_code == 200:
+            results = response.json().get("results", [])
+            return len(results) > 0
+    except Exception as err:
+        logging.warning("Failed to check URL existence: %s", err)
+    return False
+
+
 def push_to_notion(
     notion_token: str,
     database_id: str,
     payload: ArticlePayload,
 ) -> None:
+    # Check if URL already exists
+    if check_url_exists(notion_token, database_id, payload.url):
+        logging.info("Skipping '%s' - URL already exists in database", payload.title)
+        return
+
     headers = {
         "Authorization": f"Bearer {notion_token}",
         "Notion-Version": NOTION_VERSION,

@@ -106,7 +106,21 @@ def api_articles():
     """API endpoint to fetch articles."""
     pages = fetch_notion_articles()
     articles = [parse_notion_page(page) for page in pages]
-    return jsonify(articles)
+    
+    # Remove duplicates by URL, keeping the most recent one
+    seen_urls = {}
+    unique_articles = []
+    for article in articles:
+        url = article.get("url", "")
+        if not url:
+            continue
+        # If we've seen this URL, skip (we're iterating from newest to oldest)
+        if url in seen_urls:
+            continue
+        seen_urls[url] = True
+        unique_articles.append(article)
+    
+    return jsonify(unique_articles)
 
 
 if __name__ == "__main__":
