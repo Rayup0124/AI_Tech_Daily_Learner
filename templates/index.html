@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Tech Daily Learner</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            color: white;
+            margin-bottom: 40px;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .subtitle {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .loading {
+            text-align: center;
+            color: white;
+            font-size: 1.2rem;
+            padding: 40px;
+        }
+
+        .articles-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 20px;
+            margin-top: 30px;
+        }
+
+        .article-card {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .article-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 12px rgba(0,0,0,0.15);
+        }
+
+        .article-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 16px;
+        }
+
+        .article-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 8px;
+            line-height: 1.4;
+        }
+
+        .article-title a {
+            color: #667eea;
+            text-decoration: none;
+        }
+
+        .article-title a:hover {
+            text-decoration: underline;
+        }
+
+        .score-badge {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .article-date {
+            color: #666;
+            font-size: 0.9rem;
+            margin-bottom: 12px;
+        }
+
+        .article-summary {
+            color: #555;
+            line-height: 1.6;
+            margin-bottom: 16px;
+            white-space: pre-line;
+        }
+
+        .keywords {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 16px;
+        }
+
+        .keyword-tag {
+            background: #f0f0f0;
+            color: #667eea;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+
+        .error {
+            background: #fee;
+            color: #c33;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        @media (max-width: 768px) {
+            .articles-grid {
+                grid-template-columns: 1fr;
+            }
+
+            h1 {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🚀 AI Tech Daily Learner</h1>
+            <p class="subtitle">每日精选技术文章摘要</p>
+        </header>
+
+        <div id="loading" class="loading">加载中...</div>
+        <div id="error" class="error" style="display: none;"></div>
+        <div id="articles" class="articles-grid" style="display: none;"></div>
+    </div>
+
+    <script>
+        async function loadArticles() {
+            const loadingEl = document.getElementById('loading');
+            const errorEl = document.getElementById('error');
+            const articlesEl = document.getElementById('articles');
+
+            try {
+                const response = await fetch('/api/articles');
+                if (!response.ok) {
+                    throw new Error('Failed to fetch articles');
+                }
+                const articles = await response.json();
+
+                loadingEl.style.display = 'none';
+                errorEl.style.display = 'none';
+
+                if (articles.length === 0) {
+                    articlesEl.innerHTML = '<div class="error">暂无文章</div>';
+                    articlesEl.style.display = 'block';
+                    return;
+                }
+
+                articlesEl.innerHTML = articles.map(article => {
+                    const date = article.date ? new Date(article.date).toLocaleDateString('zh-CN') : '';
+                    const keywordsHtml = article.keywords.map(kw => 
+                        `<span class="keyword-tag">${kw}</span>`
+                    ).join('');
+
+                    return `
+                        <div class="article-card">
+                            <div class="article-header">
+                                <div style="flex: 1;">
+                                    <h2 class="article-title">
+                                        <a href="${article.url}" target="_blank" rel="noopener">
+                                            ${article.title || 'Untitled'}
+                                        </a>
+                                    </h2>
+                                    ${date ? `<div class="article-date">📅 ${date}</div>` : ''}
+                                </div>
+                                ${article.score > 0 ? `<div class="score-badge">⭐ ${article.score}/5</div>` : ''}
+                            </div>
+                            <div class="article-summary">${article.summary || ''}</div>
+                            ${keywordsHtml ? `<div class="keywords">${keywordsHtml}</div>` : ''}
+                        </div>
+                    `;
+                }).join('');
+
+                articlesEl.style.display = 'grid';
+            } catch (error) {
+                loadingEl.style.display = 'none';
+                errorEl.textContent = `加载失败: ${error.message}`;
+                errorEl.style.display = 'block';
+            }
+        }
+
+        // Load articles on page load
+        loadArticles();
+
+        // Auto-refresh every 5 minutes
+        setInterval(loadArticles, 5 * 60 * 1000);
+    </script>
+</body>
+</html>
+
