@@ -12,8 +12,6 @@ from google.generativeai.types import GenerationConfig
 import requests
 from bs4 import BeautifulSoup
 import yfinance as yf
-import praw
-import feedparser
 
 # Hacker News API
 HN_TOP_STORIES_URL = "https://hacker-news.firebaseio.com/v0/topstories.json"
@@ -35,9 +33,64 @@ GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
 # 你可以在环境变量 STOCK_CODES 或这里自行增加。
 DEFAULT_STOCK_CODES = ["1155.KL"]
 
-# Reddit subreddits
-CURSOR_SUBREDDITS = ["cursor", "vscode", "programming"]
-IDEA_SUBREDDITS = ["AppIdeas", "SideProject"]
+# Reddit-based sources were removed to avoid API friction.
+# We now use local "seed" prompts to generate Cursor tips and Indie ideas
+# directly with Gemini (no external APIs).
+CURSOR_SUBREDDITS = ["cursor", "vscode", "programming"]  # kept for backward compat (unused)
+IDEA_SUBREDDITS = ["AppIdeas", "SideProject"]  # kept for backward compat (unused)
+
+# Cursor tips seed themes (one tip per seed, cycled by date)
+CURSOR_TIP_SEEDS = [
+    {
+        "slug": "daily-learning-workflow",
+        "title": "为自己设计 Cursor 每日学习流程",
+        "prompt": "Design a daily learning workflow using Cursor: review yesterday's code, ask AI to comment on weak spots, generate 1-2 micro tasks, and summarize new knowledge.",
+    },
+    {
+        "slug": "ai-edit-refactor",
+        "title": "用 AI Edit 快速重构函数",
+        "prompt": "Use Cursor's AI Edit to refactor a long Python function into smaller testable units, including how to write safe refactor prompts and verify changes with tests.",
+    },
+    {
+        "slug": "prompt-library",
+        "title": "建立自己的 Prompt Library",
+        "prompt": "Build a small prompt library inside Cursor or snippets so that common refactor / debug / explain prompts can be reused quickly every day.",
+    },
+    {
+        "slug": "debug-workflow",
+        "title": "将 Cursor 融入调试流程",
+        "prompt": "Combine traditional debugging tools with Cursor chat: letting AI explain stack traces, suggest hypotheses, and generate focused logging or assertions.",
+    },
+    {
+        "slug": "reading-source-code",
+        "title": "用 Cursor 阅读源码不迷路",
+        "prompt": "Use Cursor to navigate and understand unfamiliar open-source code bases, generating file overviews, call graphs, and learning checklists.",
+    },
+]
+
+# Indie / side‑project idea seeds
+IDEA_SEEDS = [
+    {
+        "slug": "dev-learning-coach",
+        "title": "程序员学习教练小助手",
+        "prompt": "A personal learning coach for developers that tracks what you learned each day, suggests spaced‑repetition reviews, and creates tiny weekend projects.",
+    },
+    {
+        "slug": "micro-saas-tracker",
+        "title": "Micro‑SaaS 收入追踪面板",
+        "prompt": "A dashboard for indie hackers to track revenue, churn and experiments across multiple tiny SaaS products, with AI suggesting next actions.",
+    },
+    {
+        "slug": "idea-validator",
+        "title": "应用想法快速验证工具",
+        "prompt": "A tool where you paste a new app idea and receive a quick validation: who needs it, minimum MVP scope, and 3 cheapest channels to find first users.",
+    },
+    {
+        "slug": "dev-log-to-newsletter",
+        "title": "把开发日志自动变成 Newsletter",
+        "prompt": "A service that turns a developer's daily changelog into a weekly email newsletter to followers, summarizing progress in human‑friendly language.",
+    },
+]
 
 logging.basicConfig(
     level=logging.INFO,
@@ -558,105 +611,88 @@ def worker_stock(notion_token: str, notion_db_id: str) -> int:
 
 # ==================== Worker 3: Cursor Tips ====================
 
-def fetch_reddit_posts(subreddits: List[str], keywords: List[str], min_upvotes: int = 10) -> List[Dict[str, Any]]:
-    """Fetch Reddit posts matching criteria."""
-    client_id = os.getenv("REDDIT_CLIENT_ID")
-    client_secret = os.getenv("REDDIT_CLIENT_SECRET")
-    user_agent = os.getenv("REDDIT_USER_AGENT", "AI_Tech_Daily_Learner/1.0")
-
-    if not client_id or not client_secret:
-        logging.warning("Reddit credentials not configured, skipping Reddit fetch")
+def _select_daily_seeds(seeds: List[Dict[str, str]], count: int) -> List[Dict[str, str]]:
+    """Select a small number of seeds based on today's date so that content rotates."""
+    if not seeds or count <= 0:
         return []
-
-    try:
-        reddit = praw.Reddit(
-            client_id=client_id,
-            client_secret=client_secret,
-            user_agent=user_agent,
-        )
-
-        posts = []
-        cutoff_time = time.time() - 24 * 3600  # 24 hours ago
-
-        for subreddit_name in subreddits:
-            try:
-                subreddit = reddit.subreddit(subreddit_name)
-                for submission in subreddit.new(limit=50):
-                    if submission.created_utc < cutoff_time:
-                        continue
-                    if submission.score < min_upvotes:
-                        continue
-                    title_lower = submission.title.lower()
-                    if any(kw.lower() in title_lower for kw in keywords):
-                        posts.append({
-                            "title": submission.title,
-                            "url": f"https://reddit.com{submission.permalink}",
-                            "content": submission.selftext[:MAX_ARTICLE_CHARS] if submission.selftext else "",
-                            "score": submission.score,
-                        })
-            except Exception as err:
-                logging.warning("Failed to fetch from r/%s: %s", subreddit_name, err)
-
-        return posts[:10]  # Limit to 10 posts
-    except Exception as err:
-        logging.warning("Failed to initialize Reddit client: %s", err)
-        return []
+    base = dt.datetime.utcnow().date().toordinal()
+    selected: List[Dict[str, str]] = []
+    max_count = min(count, len(seeds))
+    for i in range(max_count):
+        idx = (base + i) % len(seeds)
+        selected.append(seeds[idx])
+    return selected
 
 
-def analyze_cursor_post(
+def generate_cursor_tip_from_seed(
     model: genai.GenerativeModel,
-    title: str,
-    content: str,
-) -> Optional[ArticlePayload]:
-    """Analyze Cursor-related Reddit post."""
+    seed: Dict[str, str],
+) -> ArticlePayload:
+    """Use Gemini directly to generate a Cursor tip from a local seed theme (no Reddit)."""
     prompt = (
-        "You are a senior developer. Extract practical tips, shortcuts, or prompts from this Reddit post.\n"
-        "If the content has no valuable information, return null.\n"
-        "Otherwise, return ONLY valid JSON:\n"
+        "You are a senior developer and heavy Cursor user.\n"
+        "Based on the following theme, generate practical tips and shortcuts for using Cursor in daily work.\n"
+        "Return ONLY valid JSON with this schema:\n"
         "{\n"
         '  "summary_points": ["3 concise Chinese bullet points with practical tips"],\n'
         '  "keywords": [{"term_en": "English term", "term_zh": "Chinese explanation"}],\n'
-        '  "one_liner": "English one sentence summary",\n'
+        '  "one_liner": "English one sentence summary of why this tip is useful",\n'
         '  "score": 1-5 integer (usefulness level)\n'
         "}\n"
         "Do not add markdown fences."
     )
 
-    response = model.generate_content(
-        [prompt, f"Title: {title}", "Content:", content or title],
-        generation_config=GenerationConfig(
-            temperature=0.4,
-            max_output_tokens=256,
-            response_mime_type="application/json",
-        ),
-    )
-    json_payload = extract_json(extract_response_text(response))
+    try:
+        response = model.generate_content(
+            [prompt, f"Theme: {seed['prompt']}"],
+            generation_config=GenerationConfig(
+                temperature=0.4,
+                max_output_tokens=256,
+                response_mime_type="application/json",
+            ),
+        )
+        json_payload = extract_json(extract_response_text(response))
+        summary_points = json_payload.get("summary_points", [])
+        keywords = json_payload.get("keywords", [])
+        one_liner = json_payload.get("one_liner", "")
+        score = int(json_payload.get("score", 4))
 
-    # Check if AI returned null (no valuable content)
-    if json_payload is None or json_payload.get("summary_points") is None:
-        return None
+        if not summary_points:
+            raise ValueError("AI response missing summary_points")
 
-    summary_points = json_payload.get("summary_points", [])
-    keywords = json_payload.get("keywords", [])
-    one_liner = json_payload.get("one_liner", "")
-    score = int(json_payload.get("score", 3))
-
-    if not summary_points:
-        return None
-
-    return ArticlePayload(
-        title=title,
-        url="",
-        summary_points=summary_points[:3],
-        keywords=keywords[:2],
-        one_liner=one_liner,
-        score=max(1, min(score, 5)),
-        category="Cursor",
-    )
+        return ArticlePayload(
+            title=seed["title"],
+            url=f"cursor://{seed['slug']}",
+            summary_points=summary_points[:3],
+            keywords=keywords[:2],
+            one_liner=one_liner,
+            score=max(1, min(score, 5)),
+            category="Cursor",
+        )
+    except Exception as err:
+        logging.warning("Gemini cursor tip generation failed for '%s': %s", seed.get("slug"), err)
+        # Fallback: simple local tip
+        summary_points = [
+            f"围绕主题【{seed['title']}】尝试在 Cursor 中实践：{seed['prompt']}",
+            "先在小项目或练习仓库中试验新的工作流，再逐步应用到正式项目。",
+        ]
+        keywords = [
+            {"term_en": "fallback", "term_zh": "本条目由本地备用逻辑生成"},
+        ]
+        one_liner = "Local fallback tip about using Cursor more effectively in daily workflow."
+        return ArticlePayload(
+            title=seed["title"],
+            url=f"cursor://{seed['slug']}",
+            summary_points=summary_points,
+            keywords=keywords,
+            one_liner=one_liner,
+            score=3,
+            category="Cursor",
+        )
 
 
 def worker_cursor(notion_token: str, notion_db_id: str) -> int:
-    """Worker 3: Process Cursor tips from Reddit."""
+    """Worker 3: Generate Cursor tips from local seeds (no Reddit needed)."""
     try:
         api_key = get_gemini_key("Cursor")
         model = init_gemini(GEMINI_MODEL, api_key)
@@ -664,22 +700,17 @@ def worker_cursor(notion_token: str, notion_db_id: str) -> int:
         logging.warning("Skipping Cursor worker: No Gemini API key configured")
         return 0
 
-    posts = fetch_reddit_posts(CURSOR_SUBREDDITS, ["cursor", "ai", "prompt", "shortcut", "tip"])
     processed = 0
+    seeds = _select_daily_seeds(CURSOR_TIP_SEEDS, 2)  # up to 2 tips per run
 
-    for post in posts:
+    for seed in seeds:
         try:
-            payload = analyze_cursor_post(model, post["title"], post["content"])
-            if not payload:
-                logging.info("Skipping '%s' - no valuable content.", post["title"])
-                continue
-
-            payload.url = post["url"]
+            payload = generate_cursor_tip_from_seed(model, seed)
             push_to_notion(notion_token, notion_db_id, payload)
             processed += 1
-            logging.info("Successfully processed Cursor tip '%s'.", post["title"])
+            logging.info("Successfully generated Cursor tip '%s'.", seed["title"])
         except Exception as err:
-            logging.exception("Failed to process Cursor post: %s", err)
+            logging.exception("Failed to generate Cursor tip from seed '%s': %s", seed.get("slug"), err)
 
     return processed
 
@@ -733,7 +764,7 @@ def analyze_idea(
 
 
 def worker_idea(notion_token: str, notion_db_id: str) -> int:
-    """Worker 4: Process Indie ideas from Reddit."""
+    """Worker 4: Generate Indie ideas from local seeds (no Reddit needed)."""
     try:
         api_key = get_gemini_key("Idea")
         model = init_gemini(GEMINI_MODEL, api_key)
@@ -741,18 +772,44 @@ def worker_idea(notion_token: str, notion_db_id: str) -> int:
         logging.warning("Skipping Idea worker: No Gemini API key configured")
         return 0
 
-    posts = fetch_reddit_posts(IDEA_SUBREDDITS, [], min_upvotes=5)
     processed = 0
+    seeds = _select_daily_seeds(IDEA_SEEDS, 1)  # one idea per run
 
-    for post in posts:
+    for seed in seeds:
         try:
-            payload = analyze_idea(model, post["title"], post["content"])
-            payload.url = post["url"]
+            # Reuse analyze_idea prompt, feeding our own seed content
+            try:
+                payload = analyze_idea(model, seed["title"], seed["prompt"])
+            except Exception as err:
+                logging.warning("Gemini idea generation failed for '%s': %s", seed.get("slug"), err)
+                # Fallback: simple local idea
+                summary_points = [
+                    f"围绕主题【{seed['title']}】构思一个应用或服务：{seed['prompt']}",
+                    "先用极小的 MVP 验证：只做一个简单的网页或自动化脚本找 3~5 个真实用户试用。",
+                ]
+                keywords = [
+                    {"term_en": "fallback", "term_zh": "本条目由本地备用逻辑生成"},
+                ]
+                one_liner = "Local fallback description for an indie project idea."
+                payload = ArticlePayload(
+                    title=seed["title"],
+                    url=f"idea://{seed['slug']}",
+                    summary_points=summary_points,
+                    keywords=keywords,
+                    one_liner=one_liner,
+                    score=3,
+                    category="Idea",
+                )
+
+            # Ensure URL is a stable pseudo-link so we can de‑duplicate in Notion
+            if not payload.url:
+                payload.url = f"idea://{seed['slug']}"
+
             push_to_notion(notion_token, notion_db_id, payload)
             processed += 1
-            logging.info("Successfully processed Idea '%s'.", post["title"])
+            logging.info("Successfully generated Idea '%s'.", seed["title"])
         except Exception as err:
-            logging.exception("Failed to process Idea post: %s", err)
+            logging.exception("Failed to generate Idea from seed '%s': %s", seed.get("slug"), err)
 
     return processed
 
