@@ -12,8 +12,8 @@ NOTION_API_URL = "https://api.notion.com/v1/databases/{database_id}/query"
 NOTION_VERSION = "2022-06-28"
 
 
-def fetch_notion_articles(category: str = None) -> List[Dict[str, Any]]:
-    """Fetch articles from Notion database, optionally filtered by category."""
+def fetch_notion_articles() -> List[Dict[str, Any]]:
+    """Fetch articles from Notion database (all categories)."""
     notion_token = os.getenv("NOTION_TOKEN")
     database_id = os.getenv("NOTION_DATABASE_ID")
 
@@ -26,22 +26,9 @@ def fetch_notion_articles(category: str = None) -> List[Dict[str, Any]]:
         "Content-Type": "application/json",
     }
 
-    # Build filter for category if specified
-    filter_data = {}
-    if category:
-        filter_data = {
-            "filter": {
-                "property": "Category",
-                "select": {
-                    "equals": category,
-                },
-            },
-        }
-
     data = {
         "sorts": [{"property": "Date", "direction": "descending"}],
         "page_size": 100,
-        **filter_data,
     }
 
     try:
@@ -131,9 +118,13 @@ def index():
 @app.route("/api/articles")
 def api_articles():
     """API endpoint to fetch articles, optionally filtered by category."""
-    category = request.args.get("category", "Tech")  # Default to Tech
-    pages = fetch_notion_articles(category=category if category else None)
+    category = request.args.get("category", "").strip()
+    pages = fetch_notion_articles()
     articles = [parse_notion_page(page) for page in pages]
+
+    # Filter by category name on the parsed article data
+    if category:
+        articles = [a for a in articles if a.get("category") == category]
 
     # Remove duplicates by URL, keeping the most recent one
     seen_urls = {}
