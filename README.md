@@ -1,3 +1,6 @@
+<!-- Language Switch -->
+**English** | [中文](README.zh-CN.md)
+
 # AI Tech Daily Learner - V3 All-in-One Dashboard
 
 Python automation that aggregates multi-dimensional intelligence data (Tech articles, Stock analysis, Cursor tips, Indie ideas), processes them with Google Gemini AI, and sends results to a Notion database. A GitHub Actions workflow runs everything daily at 00:00 UTC (08:00 Beijing time).
@@ -7,8 +10,8 @@ Python automation that aggregates multi-dimensional intelligence data (Tech arti
 ### V3 Multi-Dimensional Data
 - **💻 Tech Daily**: Pulls top 5 Hacker News stories, summarizes with bilingual learning nuggets
 - **📈 Market Watch**: Analyzes Malaysian stocks (default: Maybank, Petronas Chem, CIMB) with AI-powered sentiment analysis
-- **🖱️ Cursor Tips**: Scrapes Reddit for practical Cursor/AI development tips
-- **💡 App Ideas**: Collects indie startup ideas from Reddit with MVP tech stack recommendations
+- **🖱️ Cursor Tips**: Generates daily Cursor productivity tips (no Reddit required)
+- **💡 App Ideas**: Generates daily indie-dev inspiration + MVP suggestions (no Reddit required)
 
 ### AI Processing
 - Uses Google Gemini (`gemini-1.5-flash` by default) to create Chinese summaries, bilingual keywords, English one-liners, and 1–5 scores
@@ -31,7 +34,6 @@ Python automation that aggregates multi-dimensional intelligence data (Tech arti
 - Python 3.9+
 - Notion account with access to create a database
 - Google Gemini API key(s) (can use multiple keys for different categories)
-- Reddit API credentials (for Cursor and Idea workers - optional)
 - GitHub account (optional for automation)
 
 ## 2. Local Setup (Step-by-step)
@@ -57,7 +59,8 @@ Python automation that aggregates multi-dimensional intelligence data (Tech arti
 
 3. **Install dependencies**
    ```bash
-   pip install -r requirements.txt
+   # Worker (main.py) dependencies
+   pip install -r worker-requirements.txt
    ```
 
 4. **Set required environment variables**
@@ -70,11 +73,6 @@ Python automation that aggregates multi-dimensional intelligence data (Tech arti
    # Optional (for multi-key setup - recommended)
    STOCK_GEMINI_KEY=<stock_gemini_key>           # For Stock analysis
    CURSOR_GEMINI_KEY=<cursor_gemini_key>          # For Cursor and Idea
-
-   # Optional (for Reddit workers)
-   REDDIT_CLIENT_ID=<reddit_client_id>
-   REDDIT_CLIENT_SECRET=<reddit_client_secret>
-   REDDIT_USER_AGENT=AI_Tech_Daily_Learner/1.0
 
    # Optional (for stock codes)
    STOCK_CODES=1155.KL,5183.KL,1023.KL           # Default: Maybank, Petronas Chem, CIMB
@@ -128,21 +126,8 @@ Python automation that aggregates multi-dimensional intelligence data (Tech arti
 
 ## 5. Get Reddit API Credentials (Optional)
 
-For Cursor and Idea workers:
-
-1. Visit [Reddit Apps](https://www.reddit.com/prefs/apps).
-2. Click **create another app...** or **create app**.
-3. Fill in:
-   - **Name**: `AI Tech Daily Learner`
-   - **Type**: `script`
-   - **Description**: (optional)
-   - **About URL**: (optional)
-   - **Redirect URI**: `http://localhost:8080` (required but not used)
-4. Click **create app**.
-5. Copy the **client ID** (under the app name) → `REDDIT_CLIENT_ID`
-6. Copy the **secret** (labeled "secret") → `REDDIT_CLIENT_SECRET`
-
-If Reddit credentials are not set, the Cursor and Idea workers will be skipped.
+**Note:** Reddit is no longer required. Cursor Tips and App Ideas are generated from local seed themes + Gemini.
+You can ignore this section.
 
 ## 6. Configure GitHub Secrets
 
@@ -160,11 +145,6 @@ If you host this project on GitHub to leverage the daily workflow:
    - `STOCK_GEMINI_KEY`
    - `CURSOR_GEMINI_KEY`
 
-   **Optional (for Reddit workers):**
-   - `REDDIT_CLIENT_ID`
-   - `REDDIT_CLIENT_SECRET`
-   - `REDDIT_USER_AGENT`
-
    **Optional (for customization):**
    - `GEMINI_MODEL` (defaults to `gemini-1.5-flash`)
    - `STOCK_CODES` (comma-separated, defaults to `1155.KL,5183.KL,1023.KL`)
@@ -174,7 +154,7 @@ If you host this project on GitHub to leverage the daily workflow:
 - The workflow file lives at `.github/workflows/daily_run.yml`.
 - Schedule: `0 0 * * *` (00:00 UTC daily).
 - Runner: `ubuntu-latest`.
-- Steps: checkout → set up Python → install deps → run `python main.py`.
+- Steps: checkout → set up Python → install deps (`worker-requirements.txt`) → run `python main.py`.
 - The workflow automatically uses the secrets configured above.
 
 ## 8. Workers Overview
@@ -193,16 +173,15 @@ If you host this project on GitHub to leverage the daily workflow:
 - **Output**: Includes `Sentiment` (Bullish 🟢 / Bearish 🔴 / Neutral ⚪)
 
 ### Worker 3: Cursor Tips
-- **Source**: Reddit (`r/cursor`, `r/vscode`, `r/programming`)
+- **Source**: Local seed themes + Gemini (no external API)
 - **Category**: `Cursor`
 - **Key**: `CURSOR_GEMINI_KEY` (falls back to `GEMINI_API_KEY`)
-- **Filter**: Posts from last 24h with >10 upvotes, containing keywords: "cursor", "ai", "prompt", "shortcut", "tip"
+- **Output**: 1–2 tips per run (rotates by date)
 
 ### Worker 4: Indie Ideas
-- **Source**: Reddit (`r/AppIdeas`, `r/SideProject`)
+- **Source**: Local seed themes + Gemini (no external API)
 - **Category**: `Idea`
 - **Key**: `CURSOR_GEMINI_KEY` (falls back to `GEMINI_API_KEY`)
-- **Filter**: Posts from last 24h with >5 upvotes
 - **Output**: Includes MVP tech stack recommendation in one-liner
 
 ## 9. Troubleshooting & Tips
@@ -211,7 +190,7 @@ If you host this project on GitHub to leverage the daily workflow:
 - **Article scrape fails**: The script logs the error and moves to the next item.
 - **Gemini JSON errors**: Ensure the model has access (some regions require a VPN) and retry; intermittent hiccups are common.
 - **Notion rejects request**: Confirm the integration has edit access and the property names match exactly (especially `Category` and `Sentiment`).
-- **Reddit rate limits**: If you hit rate limits, reduce the number of subreddits or increase delays.
+- **Quota exceeded (429)**: Reduce the number of items per run or switch to a lighter model (e.g. `gemini-flash-latest`).
 - **Stock data unavailable**: Some stocks may not have data available; the worker will skip them.
 - **Local testing without automation**: Run `python main.py` anytime—the job is idempotent because it checks for duplicate URLs before pushing.
 
