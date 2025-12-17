@@ -441,7 +441,10 @@
                 loadingEl.style.display = 'none';
                 errorEl.style.display = 'none';
 
-                if (articles.length === 0) {
+                // 保险起见：前端再按 Category 过滤一遍，避免后端没过滤时四个 Tab 内容看起来一样
+                const filteredArticles = articles.filter(a => a.category === category);
+
+                if (filteredArticles.length === 0) {
                     articlesEl.innerHTML = '<div class="error">暂无文章</div>';
                     articlesEl.style.display = 'block';
                     return;
@@ -450,7 +453,7 @@
                 const readArticlesKey = 'readArticles_' + getDeviceId();
                 const readArticles = JSON.parse(localStorage.getItem(readArticlesKey) || '{}');
 
-                articlesEl.innerHTML = articles.map((article, index) => {
+                articlesEl.innerHTML = filteredArticles.map((article, index) => {
                     const date = article.date ? new Date(article.date).toLocaleDateString('zh-CN') : '';
                     const keywordsHtml = article.keywords.map(kw => 
                         `<span class="keyword-tag">${kw}</span>`
