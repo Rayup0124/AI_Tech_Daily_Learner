@@ -91,6 +91,9 @@ def parse_notion_page(page: Dict[str, Any]) -> Dict[str, Any]:
     category_prop = props.get("Category", {})
     if category_prop.get("select"):
         category = category_prop["select"].get("name", "")
+    # 兼容早期没有 Category 字段的老数据：默认当作 Tech 文章处理
+    if not category:
+        category = "Tech"
 
     # Extract sentiment (only for Stock)
     sentiment_prop = props.get("Sentiment", {})
