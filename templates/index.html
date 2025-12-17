@@ -376,6 +376,20 @@
     <script>
         let currentCategory = 'Tech';
 
+        // Tab descriptions (shown under the header)
+        const TAB_DESCRIPTIONS = {
+            Tech: '💻 Tech Daily：每天帮你筛 Hacker News 等技术内容，做成中英文学习小抄。',
+            Stock: '📈 Market Watch：跟踪你关注的股票，给你简单中文要点 + 英文一句话提示，快速掌握走势。',
+            Cursor: '🖱️ Cursor Tips：每天给你 1-2 个 Cursor 使用技巧/工作流建议，让写代码更快更稳。',
+            Idea: '💡 App Ideas：每天给你一个独立开发灵感 + MVP 建议，帮助你持续产出 side project 点子。',
+        };
+
+        function updateTabDescription(category) {
+            const el = document.getElementById('tab-description');
+            if (!el) return;
+            el.textContent = TAB_DESCRIPTIONS[category] || '';
+        }
+
         // Generate a unique device ID (based on browser fingerprint)
         function getDeviceId() {
             let deviceId = localStorage.getItem('deviceId');
@@ -558,11 +572,13 @@
                 currentCategory = category;
                 updateTheme(category);
                 updateTabs(category);
+                updateTabDescription(category);
                 loadArticles(category);
             });
         });
 
         // Load articles on page load
+        updateTabDescription(currentCategory);
         loadArticles(currentCategory);
 
         // Auto-refresh every 5 minutes
