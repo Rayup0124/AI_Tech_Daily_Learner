@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Tech Daily Learner</title>
+    <title>AI Tech Daily Learner - V3 Dashboard</title>
     <style>
         * {
             margin: 0;
@@ -16,6 +16,24 @@
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             padding: 20px;
+            transition: background 0.5s ease;
+        }
+
+        /* Theme colors */
+        body.theme-tech {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        body.theme-stock {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+        }
+
+        body.theme-cursor {
+            background: linear-gradient(135deg, #a855f7 0%, #ec4899 100%);
+        }
+
+        body.theme-idea {
+            background: linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%);
         }
 
         .container {
@@ -26,7 +44,7 @@
         header {
             text-align: center;
             color: white;
-            margin-bottom: 40px;
+            margin-bottom: 30px;
         }
 
         h1 {
@@ -48,11 +66,84 @@
             font-style: italic;
         }
 
+        .tab-description {
+            margin-bottom: 16px;
+            text-align: center;
+            color: rgba(255, 255, 255, 0.92);
+            font-size: 0.95rem;
+        }
+
+        /* Tab Navigation */
+        .tabs {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+
+        .tab {
+            padding: 12px 24px;
+            border-radius: 25px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+
+        .tab:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+        }
+
+        .tab.active {
+            background: white;
+            color: #333;
+            border-color: white;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+
+        /* Tab-specific colors */
+        .tab-tech.active {
+            background: #667eea;
+            color: white;
+        }
+
+        .tab-stock.active {
+            background: #11998e;
+            color: white;
+        }
+
+        .tab-cursor.active {
+            background: #a855f7;
+            color: white;
+        }
+
+        .tab-idea.active {
+            background: #f59e0b;
+            color: white;
+        }
+
         .loading {
             text-align: center;
             color: white;
             font-size: 1.2rem;
             padding: 40px;
+        }
+
+        .loading::after {
+            content: '...';
+            animation: dots 1.5s steps(4, end) infinite;
+        }
+
+        @keyframes dots {
+            0%, 20% { content: '.'; }
+            40% { content: '..'; }
+            60%, 100% { content: '...'; }
         }
 
         .articles-grid {
@@ -69,6 +160,7 @@
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
             transition: transform 0.2s, box-shadow 0.2s, opacity 0.2s;
             position: relative;
+            isolation: isolate;
         }
 
         .article-card:hover {
@@ -78,6 +170,24 @@
 
         .article-card.read {
             opacity: 0.6;
+        }
+
+        /* Category-specific card styles */
+        .article-card.stock-card {
+            border-left: 4px solid #11998e;
+        }
+
+        .article-card.cursor-card {
+            border-left: 4px solid #a855f7;
+            font-family: 'Courier New', monospace;
+        }
+
+        .article-card.idea-card {
+            border-left: 4px solid #f59e0b;
+        }
+
+        .article-card.tech-card {
+            border-left: 4px solid #667eea;
         }
 
         .read-button {
@@ -108,16 +218,6 @@
             background: #667eea;
             border-color: #667eea;
             color: white;
-        }
-
-        .article-card {
-            background: white;
-            border-radius: 12px;
-            padding: 24px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            transition: transform 0.2s, box-shadow 0.2s, opacity 0.2s;
-            position: relative;
-            isolation: isolate;
         }
 
         .article-header {
@@ -154,6 +254,30 @@
             white-space: nowrap;
         }
 
+        .sentiment-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-left: 8px;
+        }
+
+        .sentiment-badge.bullish {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .sentiment-badge.bearish {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .sentiment-badge.neutral {
+            background: #f3f4f6;
+            color: #374151;
+        }
+
         .article-date {
             color: #666;
             font-size: 0.9rem;
@@ -165,6 +289,19 @@
             line-height: 1.6;
             margin-bottom: 16px;
             white-space: pre-line;
+        }
+
+        .mvp-suggestion {
+            background: #fef3c7;
+            border-left: 3px solid #f59e0b;
+            padding: 12px;
+            border-radius: 6px;
+            margin-top: 12px;
+            font-size: 0.9rem;
+        }
+
+        .mvp-suggestion strong {
+            color: #f59e0b;
         }
 
         .keywords {
@@ -200,30 +337,102 @@
             h1 {
                 font-size: 2rem;
             }
+
+            .tabs {
+                gap: 8px;
+            }
+
+            .tab {
+                padding: 10px 16px;
+                font-size: 0.9rem;
+            }
         }
     </style>
 </head>
-<body>
+<body class="theme-tech">
     <div class="container">
         <header>
             <h1>🚀 AI Tech Daily Learner</h1>
-            <p class="subtitle">每日精选技术文章摘要</p>
+            <p class="subtitle">多功能情报聚合平台 V3</p>
             <p class="privacy-note">💡 已读状态仅保存在您的设备浏览器中，每个设备独立存储</p>
         </header>
 
-        <div id="loading" class="loading">加载中...</div>
+        <p id="tab-description" class="tab-description">
+            💻 Tech Daily：每天帮你筛 Hacker News 等技术内容，做成中英文学习小抄。
+        </p>
+
+        <div class="tabs">
+            <button class="tab tab-tech active" data-category="Tech">💻 Tech Daily</button>
+            <button class="tab tab-stock" data-category="Stock">📈 Market Watch</button>
+            <button class="tab tab-cursor" data-category="Cursor">🖱️ Cursor Tips</button>
+            <button class="tab tab-idea" data-category="Idea">💡 App Ideas</button>
+        </div>
+
+        <div id="loading" class="loading">加载中</div>
         <div id="error" class="error" style="display: none;"></div>
         <div id="articles" class="articles-grid" style="display: none;"></div>
     </div>
 
     <script>
-        async function loadArticles() {
+        let currentCategory = 'Tech';
+
+        // Generate a unique device ID (based on browser fingerprint)
+        function getDeviceId() {
+            let deviceId = localStorage.getItem('deviceId');
+            if (!deviceId) {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                ctx.textBaseline = 'top';
+                ctx.font = '14px Arial';
+                ctx.fillText('Device fingerprint', 2, 2);
+                const fingerprint = [
+                    navigator.userAgent,
+                    navigator.language,
+                    screen.width + 'x' + screen.height,
+                    new Date().getTimezoneOffset(),
+                    canvas.toDataURL()
+                ].join('|');
+                
+                let hash = 0;
+                for (let i = 0; i < fingerprint.length; i++) {
+                    const char = fingerprint.charCodeAt(i);
+                    hash = ((hash << 5) - hash) + char;
+                    hash = hash & hash;
+                }
+                deviceId = 'device_' + Math.abs(hash).toString(36);
+                localStorage.setItem('deviceId', deviceId);
+            }
+            return deviceId;
+        }
+
+        function getReadArticlesKey() {
+            return 'readArticles_' + getDeviceId();
+        }
+
+        function updateTheme(category) {
+            document.body.className = `theme-${category.toLowerCase()}`;
+        }
+
+        function updateTabs(category) {
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+                if (tab.dataset.category === category) {
+                    tab.classList.add('active');
+                }
+            });
+        }
+
+        async function loadArticles(category) {
             const loadingEl = document.getElementById('loading');
             const errorEl = document.getElementById('error');
             const articlesEl = document.getElementById('articles');
 
+            loadingEl.style.display = 'block';
+            errorEl.style.display = 'none';
+            articlesEl.style.display = 'none';
+
             try {
-                const response = await fetch('/api/articles');
+                const response = await fetch(`/api/articles?category=${category}`);
                 if (!response.ok) {
                     throw new Error('Failed to fetch articles');
                 }
@@ -238,7 +447,6 @@
                     return;
                 }
 
-                // Load read status from localStorage (device-specific)
                 const readArticlesKey = 'readArticles_' + getDeviceId();
                 const readArticles = JSON.parse(localStorage.getItem(readArticlesKey) || '{}');
 
@@ -248,10 +456,23 @@
                         `<span class="keyword-tag">${kw}</span>`
                     ).join('');
                     const isRead = readArticles[article.url] || false;
-                    const cardClass = isRead ? 'article-card read' : 'article-card';
+                    const cardClass = `article-card ${category.toLowerCase()}-card ${isRead ? 'read' : ''}`;
                     const buttonClass = isRead ? 'read-button read' : 'read-button';
-                    // Encode URL to avoid special character issues
                     const urlEncoded = encodeURIComponent(article.url);
+
+                    // Sentiment badge for Stock
+                    let sentimentHtml = '';
+                    if (category === 'Stock' && article.sentiment) {
+                        const sentimentClass = article.sentiment.includes('Bullish') ? 'bullish' : 
+                                               article.sentiment.includes('Bearish') ? 'bearish' : 'neutral';
+                        sentimentHtml = `<span class="sentiment-badge ${sentimentClass}">${article.sentiment}</span>`;
+                    }
+
+                    // MVP suggestion for Idea
+                    let mvpHtml = '';
+                    if (category === 'Idea' && article.one_liner && article.one_liner.includes('Stack')) {
+                        mvpHtml = `<div class="mvp-suggestion"><strong>💡 MVP 建议:</strong> ${article.one_liner}</div>`;
+                    }
 
                     return `
                         <div class="${cardClass}" data-url="${urlEncoded}" data-index="${index}">
@@ -261,12 +482,14 @@
                                         <a href="${article.url}" target="_blank" rel="noopener">
                                             ${article.title || 'Untitled'}
                                         </a>
+                                        ${sentimentHtml}
                                     </h2>
                                     ${date ? `<div class="article-date">📅 ${date}</div>` : ''}
                                 </div>
                                 ${article.score > 0 ? `<div class="score-badge">⭐ ${article.score}/5</div>` : ''}
                             </div>
                             <div class="article-summary">${article.summary || ''}</div>
+                            ${mvpHtml}
                             ${keywordsHtml ? `<div class="keywords">${keywordsHtml}</div>` : ''}
                             <button class="${buttonClass}" onclick="toggleRead(${index}, '${urlEncoded}', event)" title="${isRead ? '标记为未读' : '标记为已读'}" type="button">
                                 ${isRead ? '✓' : ''}
@@ -283,49 +506,12 @@
             }
         }
 
-        // Generate a unique device ID (based on browser fingerprint)
-        function getDeviceId() {
-            let deviceId = localStorage.getItem('deviceId');
-            if (!deviceId) {
-                // Create a unique ID based on browser characteristics
-                const canvas = document.createElement('canvas');
-                const ctx = canvas.getContext('2d');
-                ctx.textBaseline = 'top';
-                ctx.font = '14px Arial';
-                ctx.fillText('Device fingerprint', 2, 2);
-                const fingerprint = [
-                    navigator.userAgent,
-                    navigator.language,
-                    screen.width + 'x' + screen.height,
-                    new Date().getTimezoneOffset(),
-                    canvas.toDataURL()
-                ].join('|');
-                
-                // Simple hash function
-                let hash = 0;
-                for (let i = 0; i < fingerprint.length; i++) {
-                    const char = fingerprint.charCodeAt(i);
-                    hash = ((hash << 5) - hash) + char;
-                    hash = hash & hash; // Convert to 32bit integer
-                }
-                deviceId = 'device_' + Math.abs(hash).toString(36);
-                localStorage.setItem('deviceId', deviceId);
-            }
-            return deviceId;
-        }
-
-        function getReadArticlesKey() {
-            return 'readArticles_' + getDeviceId();
-        }
-
         function toggleRead(index, urlEncoded, event) {
-            // Prevent event bubbling
             if (event) {
                 event.stopPropagation();
                 event.preventDefault();
             }
             
-            // Decode URL to get the original URL
             const url = decodeURIComponent(urlEncoded);
             const key = getReadArticlesKey();
             const readArticles = JSON.parse(localStorage.getItem(key) || '{}');
@@ -333,7 +519,6 @@
             readArticles[url] = !wasRead;
             localStorage.setItem(key, JSON.stringify(readArticles));
             
-            // Update UI using index for reliable selection - be very specific
             const allCards = document.querySelectorAll('.article-card');
             const targetCard = allCards[index];
             
@@ -342,7 +527,6 @@
                 return;
             }
             
-            // Verify we have the right card by checking data-index
             if (targetCard.getAttribute('data-index') !== String(index)) {
                 console.error('Index mismatch');
                 return;
@@ -354,7 +538,6 @@
                 return;
             }
             
-            // Update only this specific card
             if (readArticles[url]) {
                 targetCard.classList.add('read');
                 button.classList.add('read');
@@ -368,12 +551,22 @@
             }
         }
 
+        // Tab switching
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                const category = tab.dataset.category;
+                currentCategory = category;
+                updateTheme(category);
+                updateTabs(category);
+                loadArticles(category);
+            });
+        });
+
         // Load articles on page load
-        loadArticles();
+        loadArticles(currentCategory);
 
         // Auto-refresh every 5 minutes
-        setInterval(loadArticles, 5 * 60 * 1000);
+        setInterval(() => loadArticles(currentCategory), 5 * 60 * 1000);
     </script>
 </body>
 </html>
-
