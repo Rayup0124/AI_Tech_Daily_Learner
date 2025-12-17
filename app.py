@@ -1,10 +1,10 @@
-"""Flask web app to display Notion database articles."""
+"""Flask web app to display Notion database articles with category filtering."""
 import os
 from datetime import datetime
 from typing import Any, Dict, List
 
 import requests
-from flask import Flask, jsonify, render_template
+from flask import Flask, jsonify, render_template, request
 
 app = Flask(__name__)
 
@@ -12,8 +12,8 @@ NOTION_API_URL = "https://api.notion.com/v1/databases/{database_id}/query"
 NOTION_VERSION = "2022-06-28"
 
 
-def fetch_notion_articles() -> List[Dict[str, Any]]:
-    """Fetch articles from Notion database."""
+def fetch_notion_articles(category: str = None) -> List[Dict[str, Any]]:
+    """Fetch articles from Notion database, optionally filtered by category."""
     notion_token = os.getenv("NOTION_TOKEN")
     database_id = os.getenv("NOTION_DATABASE_ID")
 
@@ -26,9 +26,22 @@ def fetch_notion_articles() -> List[Dict[str, Any]]:
         "Content-Type": "application/json",
     }
 
+    # Build filter for category if specified
+    filter_data = {}
+    if category:
+        filter_data = {
+            "filter": {
+                "property": "Category",
+                "select": {
+                    "equals": category,
+                },
+            },
+        }
+
     data = {
         "sorts": [{"property": "Date", "direction": "descending"}],
-        "page_size": 50,
+        "page_size": 100,
+        **filter_data,
     }
 
     try:
@@ -54,6 +67,8 @@ def parse_notion_page(page: Dict[str, Any]) -> Dict[str, Any]:
     keywords = []
     date_str = ""
     score = 0
+    category = ""
+    sentiment = ""
 
     # Extract title
     title_prop = props.get("Title", {})
@@ -85,6 +100,16 @@ def parse_notion_page(page: Dict[str, Any]) -> Dict[str, Any]:
     if score_prop.get("number") is not None:
         score = int(score_prop["number"])
 
+    # Extract category
+    category_prop = props.get("Category", {})
+    if category_prop.get("select"):
+        category = category_prop["select"].get("name", "")
+
+    # Extract sentiment (only for Stock)
+    sentiment_prop = props.get("Sentiment", {})
+    if sentiment_prop.get("select"):
+        sentiment = sentiment_prop["select"].get("name", "")
+
     return {
         "title": title,
         "url": url,
@@ -92,6 +117,8 @@ def parse_notion_page(page: Dict[str, Any]) -> Dict[str, Any]:
         "keywords": keywords,
         "date": date_str,
         "score": score,
+        "category": category,
+        "sentiment": sentiment,
     }
 
 
@@ -103,10 +130,11 @@ def index():
 
 @app.route("/api/articles")
 def api_articles():
-    """API endpoint to fetch articles."""
-    pages = fetch_notion_articles()
+    """API endpoint to fetch articles, optionally filtered by category."""
+    category = request.args.get("category", "Tech")  # Default to Tech
+    pages = fetch_notion_articles(category=category if category else None)
     articles = [parse_notion_page(page) for page in pages]
-    
+
     # Remove duplicates by URL, keeping the most recent one
     seen_urls = {}
     unique_articles = []
@@ -119,11 +147,10 @@ def api_articles():
             continue
         seen_urls[url] = True
         unique_articles.append(article)
-    
+
     return jsonify(unique_articles)
 
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=False)
-
