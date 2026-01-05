@@ -35,6 +35,9 @@
         body.theme-idea {
             background: linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%);
         }
+        body.theme-language {
+            background: linear-gradient(135deg, #0ea5a4 0%, #06b6d4 100%);
+        }
 
         .container {
             max-width: 1200px;
@@ -127,6 +130,10 @@
             background: #f59e0b;
             color: white;
         }
+        .tab-language.active {
+            background: #06b6d4;
+            color: white;
+        }
 
         .loading {
             text-align: center;
@@ -188,6 +195,9 @@
 
         .article-card.tech-card {
             border-left: 4px solid #667eea;
+        }
+        .article-card.language-card {
+            border-left: 4px solid #06b6d4;
         }
 
         .read-button {
@@ -366,6 +376,7 @@
             <button class="tab tab-stock" data-category="Stock">📈 Market Watch</button>
             <button class="tab tab-cursor" data-category="Cursor">🖱️ Cursor Tips</button>
             <button class="tab tab-idea" data-category="Idea">💡 App Ideas</button>
+            <button class="tab tab-language" data-category="Language">🌐 Language</button>
         </div>
 
         <div id="loading" class="loading">加载中</div>
@@ -382,6 +393,7 @@
             Stock: '📈 Market Watch：跟踪你关注的股票，给你简单中文要点 + 英文一句话提示，快速掌握走势。',
             Cursor: '🖱️ Cursor Tips：每天给你 1-2 个 Cursor 使用技巧/工作流建议，让写代码更快更稳。',
             Idea: '💡 App Ideas：每天给你一个独立开发灵感 + MVP 建议，帮助你持续产出 side project 点子。',
+            Language: '🌐 Language：每日三语思维矩阵（English / 中文 / Bahasa Melayu），含对话示例与 Toggle Quiz，适合练习即兴表达。',
         };
 
         function updateTabDescription(category) {
