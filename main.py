@@ -106,8 +106,17 @@ class ArticlePayload:
     keywords: List[Dict[str, str]]
     one_liner: str
     score: int
-    category: str  # Tech, Stock, Cursor, Idea
+    category: str  # Tech, Stock, Cursor, Idea, Language
     sentiment: Optional[str] = None  # Bullish 🟢, Bearish 🔴, Neutral ⚪ (only for Stock)
+
+
+@dataclass
+class TrilingualMatrixPayload:
+    """Payload for Trilingual Matrix (Language Learning) content."""
+    title: str
+    date: str
+    scenes: List[Dict[str, Any]]  # Each scene has name, register, and trilingual content
+    category: str = "Language"
 
 
 class ConfigurationError(ValueError):
@@ -814,6 +823,374 @@ def worker_idea(notion_token: str, notion_db_id: str) -> int:
     return processed
 
 
+# ==================== Worker 5: Trilingual Matrix (Language Learning) ====================
+
+def generate_trilingual_matrix(model: genai.GenerativeModel, date: str) -> TrilingualMatrixPayload:
+    """Generate a daily Trilingual Matrix lesson covering Work, Life, Tech scenes."""
+    prompt = (
+        "You are a professional language teacher fluent in English, Chinese, and Bahasa Melayu.\n"
+        "Task: Generate a 'Trilingual Matrix' lesson for {date} covering three scenes: Work, Life, Tech.\n"
+        "\n"
+        "Output must be valid JSON with this structure:\n"
+        "{\n"
+        '  "title": "Trilingual Matrix: {date}",\n'
+        '  "scenes": [\n'
+        '    {\n'
+        '      "name": "Work",\n'
+        '      "register": "Formal BM",\n'
+        '      "english": {\n'
+        '        "phrases": ["Professional phrase 1", "Professional phrase 2"],\n'
+        '        "example_dialogue": ["Speaker A: Hello, how can I help you?", "Speaker B: I need assistance with the project."]\n'
+        '      },\n'
+        '      "chinese": {\n'
+        '        "phrases": ["中文商务表达1", "中文商务表达2"],\n'
+        '        "example_dialogue": ["A: 你好，我能帮你什么？", "B: 我需要项目帮助。"]\n'
+        '      },\n'
+        '      "malay": {\n'
+        '        "register": "formal",\n'
+        '        "phrases": ["Ungkapan formal 1", "Ungkapan formal 2"],\n'
+        '        "example_dialogue": ["A: Selamat pagi, bagaimana saya boleh membantu?", "B: Saya perlukan bantuan dengan projek."]\n'
+        '      },\n'
+        '      "quiz": [\n'
+        '        {"q": "How do you say \'project deadline\' in Malay?", "a": "Tarikh akhir projek"},\n'
+        '        {"q": "Translate: \'会议推迟\' to English", "a": "Meeting postponed"}\n'
+        '      ]\n'
+        '    },\n'
+        '    {\n'
+        '      "name": "Life",\n'
+        '      "register": "Casual BM",\n'
+        '      ... (similar structure with casual Malay expressions)\n'
+        '    },\n'
+        '    {\n'
+        '      "name": "Tech",\n'
+        '      "register": "Formal BM",\n'
+        '      ... (similar structure with tech-specific terms)\n'
+        '    }\n'
+        '  ]\n'
+        "}\n"
+        "\n"
+        "Requirements:\n"
+        "- Work scene: Malay must be Formal BM (Bahasa Baku).\n"
+        "- Life scene: Malay must be Casual BM (include spoken particles like 'tak', 'nak', 'camne' where appropriate).\n"
+        "- Each scene must include 3+ phrases and a short example dialogue.\n"
+        "- Each scene must have 2+ quiz items for active recall.\n"
+        "- The JSON should be parseable.\n"
+        "- Content should be practical and immediately usable."
+    ).format(date=date)
+
+    try:
+        response = model.generate_content(
+            [prompt],
+            generation_config=GenerationConfig(
+                temperature=0.6,
+                max_output_tokens=1024,
+                response_mime_type="application/json",
+            ),
+        )
+        json_payload = extract_json(extract_response_text(response))
+
+        # Validate structure
+        if not json_payload.get("scenes") or len(json_payload["scenes"]) != 3:
+            raise ValueError("Invalid scenes structure")
+
+        title = json_payload.get("title", f"Trilingual Matrix: {date}")
+        scenes = json_payload["scenes"]
+
+        return TrilingualMatrixPayload(
+            title=title,
+            date=date,
+            scenes=scenes,
+            category="Language"
+        )
+
+    except Exception as err:
+        logging.warning("Gemini trilingual matrix generation failed, using fallback: %s", err)
+
+        # Fallback content
+        fallback_scenes = [
+            {
+                "name": "Work",
+                "register": "Formal BM",
+                "english": {
+                    "phrases": ["I would like to schedule a meeting", "Please review the document"],
+                    "example_dialogue": ["A: Can we meet tomorrow?", "B: Yes, what time works for you?"]
+                },
+                "chinese": {
+                    "phrases": ["我想安排一个会议", "请审核这个文件"],
+                    "example_dialogue": ["A: 我们明天可以见面吗？", "B: 可以，你什么时间方便？"]
+                },
+                "malay": {
+                    "register": "formal",
+                    "phrases": ["Saya ingin menjadualkan mesyuarat", "Sila semak dokumen ini"],
+                    "example_dialogue": ["A: Bolehkah kita bertemu esok?", "B: Ya, pukul berapa sesuai untuk tuan?"]
+                },
+                "quiz": [
+                    {"q": "How to say 'meeting' in Malay?", "a": "Mesyuarat"},
+                    {"q": "Translate '请审核' to English", "a": "Please review"}
+                ]
+            },
+            {
+                "name": "Life",
+                "register": "Casual BM",
+                "english": {
+                    "phrases": ["What's up?", "Wanna grab some food?"],
+                    "example_dialogue": ["A: Hey, long time no see!", "B: Yeah, what's new?"]
+                },
+                "chinese": {
+                    "phrases": ["最近怎么样？", "想吃东西吗？"],
+                    "example_dialogue": ["A: 嘿，好久不见！", "B: 是啊，最近有什么新鲜事？"]
+                },
+                "malay": {
+                    "register": "casual",
+                    "phrases": ["Ada apa?", "Nak makan tak?"],
+                    "example_dialogue": ["A: Eh, lama tak jumpa!", "B: Ya la, apa khabar?"]
+                },
+                "quiz": [
+                    {"q": "How to say 'what's up' casually in Malay?", "a": "Ada apa?"},
+                    {"q": "Translate '好久不见' to English", "a": "Long time no see"}
+                ]
+            },
+            {
+                "name": "Tech",
+                "register": "Formal BM",
+                "english": {
+                    "phrases": ["This code needs refactoring", "Let's deploy the update"],
+                    "example_dialogue": ["A: The API is down", "B: I'll check the logs"]
+                },
+                "chinese": {
+                    "phrases": ["这段代码需要重构", "让我们部署更新"],
+                    "example_dialogue": ["A: API 挂了", "B: 我检查一下日志"]
+                },
+                "malay": {
+                    "register": "formal",
+                    "phrases": ["Kod ini perlu direka bentuk semula", "Mari kita gunakan kemas kini"],
+                    "example_dialogue": ["A: API tidak berfungsi", "B: Saya akan semak log"]
+                },
+                "quiz": [
+                    {"q": "What does 'refactoring' mean in Chinese?", "a": "重构"},
+                    {"q": "How to say 'API' in Malay?", "a": "API (same)"]
+                ]
+            }
+        ]
+
+        return TrilingualMatrixPayload(
+            title=f"Trilingual Matrix: {date}",
+            date=date,
+            scenes=fallback_scenes,
+            category="Language"
+        )
+
+
+def push_trilingual_matrix_to_notion(
+    notion_token: str,
+    database_id: str,
+    payload: TrilingualMatrixPayload,
+) -> None:
+    """Push Trilingual Matrix content to Notion as rich blocks."""
+    # Check if already exists (by title)
+    if check_url_exists(notion_token, database_id, payload.title):
+        logging.info("Skipping '%s' - already exists in database", payload.title)
+        return
+
+    headers = {
+        "Authorization": f"Bearer {notion_token}",
+        "Notion-Version": NOTION_VERSION,
+        "Content-Type": "application/json",
+    }
+
+    # Build rich content blocks
+    children = []
+
+    for scene in payload.scenes:
+        # Scene heading
+        register_note = " (Formal BM)" if scene["register"] == "Formal BM" else " (Casual BM)"
+        children.append({
+            "object": "block",
+            "type": "heading_2",
+            "heading_2": {
+                "rich_text": [{"text": {"content": f"{scene['name']} Scene{register_note}"}}]
+            }
+        })
+
+        # English section
+        children.append({
+            "object": "block",
+            "type": "heading_3",
+            "heading_3": {
+                "rich_text": [{"text": {"content": "🇺🇸 English"}}]
+            }
+        })
+
+        # English phrases
+        if scene["english"].get("phrases"):
+            phrases_text = "\n".join(f"• {phrase}" for phrase in scene["english"]["phrases"])
+            children.append({
+                "object": "block",
+                "type": "paragraph",
+                "paragraph": {
+                    "rich_text": [{"text": {"content": f"**Key Phrases:**\n{phrases_text}"}}]
+                }
+            })
+
+        # English dialogue
+        if scene["english"].get("example_dialogue"):
+            dialogue_text = "\n".join(scene["english"]["example_dialogue"])
+            children.append({
+                "object": "block",
+                "type": "quote",
+                "quote": {
+                    "rich_text": [{"text": {"content": f"**Example Dialogue:**\n{dialogue_text}"}}]
+                }
+            })
+
+        # Chinese section
+        children.append({
+            "object": "block",
+            "type": "heading_3",
+            "heading_3": {
+                "rich_text": [{"text": {"content": "🇨🇳 Chinese"}}]
+            }
+        })
+
+        # Chinese phrases
+        if scene["chinese"].get("phrases"):
+            phrases_text = "\n".join(f"• {phrase}" for phrase in scene["chinese"]["phrases"])
+            children.append({
+                "object": "block",
+                "type": "paragraph",
+                "paragraph": {
+                    "rich_text": [{"text": {"content": f"**Key Phrases:**\n{phrases_text}"}}]
+                }
+            })
+
+        # Chinese dialogue
+        if scene["chinese"].get("example_dialogue"):
+            dialogue_text = "\n".join(scene["chinese"]["example_dialogue"])
+            children.append({
+                "object": "block",
+                "type": "quote",
+                "quote": {
+                    "rich_text": [{"text": {"content": f"**Example Dialogue:**\n{dialogue_text}"}}]
+                }
+            })
+
+        # Malay section
+        children.append({
+            "object": "block",
+            "type": "heading_3",
+            "heading_3": {
+                "rich_text": [{"text": {"content": f"🇲🇾 Malay ({scene['register']})"}}]
+            }
+        })
+
+        # Malay phrases
+        if scene["malay"].get("phrases"):
+            phrases_text = "\n".join(f"• {phrase}" for phrase in scene["malay"]["phrases"])
+            children.append({
+                "object": "block",
+                "type": "paragraph",
+                "paragraph": {
+                    "rich_text": [{"text": {"content": f"**Key Phrases:**\n{phrases_text}"}}]
+                }
+            })
+
+        # Malay dialogue
+        if scene["malay"].get("example_dialogue"):
+            dialogue_text = "\n".join(scene["malay"]["example_dialogue"])
+            children.append({
+                "object": "block",
+                "type": "quote",
+                "quote": {
+                    "rich_text": [{"text": {"content": f"**Example Dialogue:**\n{dialogue_text}"}}]
+                }
+            })
+
+        # Quiz section as toggle blocks
+        if scene.get("quiz"):
+            children.append({
+                "object": "block",
+                "type": "heading_3",
+                "heading_3": {
+                    "rich_text": [{"text": {"content": "📝 Quiz (Click to reveal answers)"}}]
+                }
+            })
+
+            for quiz_item in scene["quiz"]:
+                question = quiz_item.get("q", "")
+                answer = quiz_item.get("a", "")
+                children.append({
+                    "object": "block",
+                    "type": "toggle",
+                    "toggle": {
+                        "rich_text": [{"text": {"content": f"Q: {question}"}}],
+                        "children": [
+                            {
+                                "object": "block",
+                                "type": "paragraph",
+                                "paragraph": {
+                                    "rich_text": [{"text": {"content": f"A: {answer}"}}]
+                                }
+                            }
+                        ]
+                    }
+                })
+
+    # Create page with rich content
+    data = {
+        "parent": {"database_id": database_id},
+        "properties": {
+            "Title": {
+                "title": [{"text": {"content": payload.title}}],
+            },
+            "URL": {
+                "url": f"trilingual://{payload.date.replace('-', '')}",
+            },
+            "Date": {
+                "date": {"start": payload.date},
+            },
+            "Category": {
+                "select": {"name": "Language"},
+            },
+            "Score": {
+                "number": 5,  # Language content always gets high score
+            },
+        },
+        "children": children,
+    }
+
+    response = requests.post("https://api.notion.com/v1/pages", headers=headers, json=data, timeout=15)
+    if response.status_code >= 300:
+        raise RuntimeError(f"Failed to send Trilingual Matrix to Notion: {response.text}")
+
+
+def worker_lang(notion_token: str, notion_db_id: str) -> int:
+    """Worker 5: Generate daily Trilingual Matrix for language learning."""
+    try:
+        # Use separate key for language generation if available
+        lang_key = os.getenv("LANG_GEMINI_KEY") or os.getenv("GEMINI_API_KEY")
+        if not lang_key:
+            logging.warning("Skipping Language worker: No Gemini API key configured")
+            return 0
+
+        model = init_gemini(GEMINI_MODEL, lang_key)
+    except ConfigurationError:
+        logging.warning("Skipping Language worker: No Gemini API key configured")
+        return 0
+
+    processed = 0
+    today = dt.datetime.utcnow().date().isoformat()
+
+    try:
+        payload = generate_trilingual_matrix(model, today)
+        push_trilingual_matrix_to_notion(notion_token, notion_db_id, payload)
+        processed += 1
+        logging.info("Successfully generated Trilingual Matrix for '%s'.", today)
+    except Exception as err:
+        logging.exception("Failed to generate Trilingual Matrix: %s", err)
+
+    return processed
+
+
 # ==================== Main Runner ====================
 
 def run() -> None:
@@ -858,6 +1235,15 @@ def run() -> None:
         logging.info("Idea Worker completed: %s ideas", count)
     except Exception as err:
         logging.exception("Idea Worker failed: %s", err)
+
+    # Worker 5: Language (Trilingual Matrix)
+    logging.info("=== Starting Language Worker ===")
+    try:
+        count = worker_lang(notion_token, notion_db_id)
+        total_processed += count
+        logging.info("Language Worker completed: %s matrices", count)
+    except Exception as err:
+        logging.exception("Language Worker failed: %s", err)
 
     logging.info("=== All Workers Completed ===")
     logging.info("Total items processed: %s", total_processed)

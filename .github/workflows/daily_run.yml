@@ -25,12 +25,10 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           STOCK_GEMINI_KEY: ${{ secrets.STOCK_GEMINI_KEY }}
           CURSOR_GEMINI_KEY: ${{ secrets.CURSOR_GEMINI_KEY }}
+          LANG_GEMINI_KEY: ${{ secrets.LANG_GEMINI_KEY }}
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
           NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
           GEMINI_MODEL: ${{ secrets.GEMINI_MODEL }}
-          REDDIT_CLIENT_ID: ${{ secrets.REDDIT_CLIENT_ID }}
-          REDDIT_CLIENT_SECRET: ${{ secrets.REDDIT_CLIENT_SECRET }}
-          REDDIT_USER_AGENT: ${{ secrets.REDDIT_USER_AGENT }}
           STOCK_CODES: ${{ secrets.STOCK_CODES }}
         run: python main.py
 
