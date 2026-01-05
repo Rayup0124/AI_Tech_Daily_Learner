@@ -968,7 +968,7 @@ def generate_trilingual_matrix(model: genai.GenerativeModel, date: str) -> Trili
                 },
                 "quiz": [
                     {"q": "What does 'refactoring' mean in Chinese?", "a": "重构"},
-                    {"q": "How to say 'API' in Malay?", "a": "API (same)"]
+                    {"q": "How to say 'API' in Malay?", "a": "API (same)"}
                 ]
             }
         ]
