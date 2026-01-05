@@ -887,14 +887,21 @@ def generate_trilingual_matrix(model: genai.GenerativeModel, date: str) -> Trili
                 response_mime_type="application/json",
             ),
         )
-        json_payload = extract_json(extract_response_text(response))
+        raw_text = extract_response_text(response)
+        # Log a truncated preview of the raw response to help debug model outputs
+        logging.info("Language model raw response preview: %s", raw_text[:2000])
+        try:
+            json_payload = extract_json(raw_text)
+        except Exception as parse_err:
+            logging.warning("Failed to parse language JSON: %s\nRaw preview: %s", parse_err, raw_text[:2000])
+            raise
 
         # Validate structure
-        if not json_payload.get("scenes") or len(json_payload["scenes"]) != 3:
+        scenes = json_payload.get("scenes")
+        if not isinstance(scenes, list) or len(scenes) != 3:
             raise ValueError("Invalid scenes structure")
 
         title = json_payload.get("title", f"Trilingual Matrix: {date}")
-        scenes = json_payload["scenes"]
 
         return TrilingualMatrixPayload(
             title=title,
