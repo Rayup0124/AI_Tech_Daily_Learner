@@ -1,0 +1,27 @@
+name: Add Language Option to Notion DB
+
+on:
+  workflow_dispatch:
+
+jobs:
+  add-language-option:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip && pip install requests
+
+      - name: Run add_language_option script
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+        run: python scripts/add_language_option.py
+
+
