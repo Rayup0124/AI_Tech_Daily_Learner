@@ -28,7 +28,8 @@ jobs:
           LANG_GEMINI_KEY: ${{ secrets.LANG_GEMINI_KEY }}
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
           NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
-          GEMINI_MODEL: ${{ secrets.GEMINI_MODEL }}
+          # Use a model with higher free-tier quota to avoid quota errors
+          GEMINI_MODEL: "gemini-1.5-flash-latest"
           STOCK_CODES: ${{ secrets.STOCK_CODES }}
         run: python main.py
 
