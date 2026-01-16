@@ -26,6 +26,6 @@ jobs:
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
           NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
           # Use a model known to be supported for generateContent
-          GEMINI_MODEL: "gemini-flash-latest"
+          GEMINI_MODEL: "models/gemini-2.5-flash"
         run: python main.py
 
