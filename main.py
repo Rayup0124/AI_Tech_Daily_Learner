@@ -119,6 +119,51 @@ def extract_response_text(response: Any) -> str:
     raise RuntimeError(f"Gemini returned no textual parts (finish_reason={reasons_msg}).")
 
 
+def log_full_gemini_response(response: Any, context: str = "") -> None:
+    """Log structured details from a Gemini response for debugging.
+
+    Attempts to log: response.text, number of candidates, each candidate's finish_reason,
+    and for each candidate the parts and their text lengths. Tries not to raise.
+    """
+    try:
+        # Basic text preview if available
+        text_preview = None
+        try:
+            text_preview = getattr(response, "text", None)
+        except Exception:
+            text_preview = None
+        if isinstance(text_preview, str):
+            logging.info("Gemini raw text preview (%s): %s", context, text_preview[:2000])
+
+        candidates = getattr(response, "candidates", None) or []
+        logging.info("Gemini candidates count (%s): %s", context, len(candidates))
+        for idx, cand in enumerate(candidates):
+            try:
+                finish_reason = getattr(cand, "finish_reason", None)
+                logging.info("Gemini candidate[%d] finish_reason (%s): %s", idx, context, finish_reason)
+                content = getattr(cand, "content", None) or {}
+                parts = getattr(content, "parts", []) or []
+                logging.info("Gemini candidate[%d] parts count (%s): %s", idx, context, len(parts))
+                for pidx, part in enumerate(parts):
+                    ptext = getattr(part, "text", None)
+                    if isinstance(ptext, str):
+                        logging.info("Gemini candidate[%d].part[%d] length (%s): %d", idx, pidx, context, len(ptext))
+                    else:
+                        logging.info("Gemini candidate[%d].part[%d] is non-text (%s): %s", idx, pidx, context, type(part))
+            except Exception as inner:
+                logging.warning("Failed to inspect candidate %s (%s): %s", idx, context, inner)
+
+        # If no candidates, try to log other attributes
+        if not candidates:
+            # Some SDK responses may store structured fields differently
+            try:
+                logging.info("Full Gemini response repr (%s): %s", context, repr(response)[:2000])
+            except Exception:
+                logging.info("Unable to repr Gemini response (%s).", context)
+    except Exception as err:
+        logging.warning("Unexpected error while logging Gemini response (%s): %s", context, err)
+
+
 def should_run(worker_name: str) -> bool:
     """
     Decide whether a given worker should run based on the RUN_ONLY environment variable.
@@ -137,6 +182,16 @@ def extract_json(raw_text: str) -> Dict[str, Any]:
     import re
 
     raw_text = raw_text.strip()
+    # If model wraps JSON in explicit markers, extract that first.
+    marker_match = re.search(r"<<<\s*JSON_START\s*>>>([\\s\\S]*?)<<<\s*JSON_END\s*>>>", raw_text, flags=re.IGNORECASE)
+    if marker_match:
+        candidate = marker_match.group(1).strip()
+        # sanitize and parse quickly
+        candidate = re.sub(r",\s*([}\]])", r"\1", candidate)
+        try:
+            return json.loads(candidate)
+        except json.JSONDecodeError as err:
+            raise ValueError(f"Failed to parse JSON between markers: {err}; candidate starts with: {candidate[:400]!r}")
     # Fast path: try direct load
     try:
         return json.loads(raw_text)
@@ -396,14 +451,16 @@ def summarize_tech_article(
     """Summarize tech article using Gemini, with local fallback when AI fails."""
     prompt = (
         "You are an assistant who summarizes technical articles for bilingual learners.\n"
-        "Return ONLY valid JSON with the following schema:\n"
+        "Return ONLY valid JSON. Wrap the entire JSON output between markers exactly as\n"
+        "<<<JSON_START>>>\n"
         "{\n"
         '  "summary_points": ["3 concise Chinese bullet points"],\n'
         '  "keywords": [{"term_en": "English term", "term_zh": "Chinese explanation"}],\n'
         '  "one_liner": "English one sentence summary",\n'
         '  "score": 1-5 integer\n'
         "}\n"
-        "Do not add markdown fences. Keep wording beginner-friendly."
+        "<<<JSON_END>>>\n"
+        "Do not add other text outside the markers. Keep wording beginner-friendly."
     )
 
     try:
@@ -534,7 +591,7 @@ def analyze_stock(
     """Analyze stock using Gemini as financial analyst, with local fallback."""
     prompt = (
         "You are a financial analyst. Analyze the following stock data and market sentiment.\n"
-        "Return ONLY valid JSON with the following schema:\n"
+        "Return ONLY valid JSON and wrap it between <<<JSON_START>>> and <<<JSON_END>>> markers.\n"
         "{\n"
         '  "summary_points": ["3 concise Chinese bullet points about market analysis"],\n'
         '  "keywords": [{"term_en": "English financial term", "term_zh": "Chinese explanation"}],\n'
@@ -542,7 +599,7 @@ def analyze_stock(
         '  "score": 1-5 integer (recommendation level),\n'
         '  "sentiment": "Bullish 🟢" or "Bearish 🔴" or "Neutral ⚪"\n'
         "}\n"
-        "Do not add markdown fences."
+        "Do not add markdown fences or other text outside the markers."
     )
 
     stock_text = (
@@ -670,14 +727,14 @@ def generate_cursor_tip_from_seed(
     prompt = (
         "You are a senior developer and heavy Cursor user.\n"
         "Based on the following theme, generate practical tips and shortcuts for using Cursor in daily work.\n"
-        "Return ONLY valid JSON with this schema:\n"
+        "Return ONLY valid JSON and wrap it between <<<JSON_START>>> and <<<JSON_END>>> markers.\n"
         "{\n"
         '  "summary_points": ["3 concise Chinese bullet points with practical tips"],\n'
         '  "keywords": [{"term_en": "English term", "term_zh": "Chinese explanation"}],\n'
         '  "one_liner": "English one sentence summary of why this tip is useful",\n'
         '  "score": 1-5 integer (usefulness level)\n'
         "}\n"
-        "Do not add markdown fences."
+        "Do not add markdown fences or other text outside the markers."
     )
 
     try:
@@ -763,14 +820,14 @@ def analyze_idea(
     """Analyze indie idea using Gemini as product manager."""
     prompt = (
         "You are a product manager. Evaluate this app/startup idea for feasibility.\n"
-        "Return ONLY valid JSON:\n"
+        "Return ONLY valid JSON and wrap it between <<<JSON_START>>> and <<<JSON_END>>> markers.\n"
         "{\n"
         '  "summary_points": ["3 concise Chinese bullet points: core idea + potential pain points"],\n'
         '  "keywords": [{"term_en": "English term", "term_zh": "Chinese explanation"}],\n'
-        '  "one_liner": "Recommended MVP tech stack (e.g., "Recommended Stack: Flutter + Firebase")",\n'
+        '  "one_liner": "Recommended MVP tech stack (e.g., \"Recommended Stack: Flutter + Firebase\")",\n'
         '  "score": 1-5 integer (business potential)\n'
         "}\n"
-        "Do not add markdown fences."
+        "Do not add markdown fences or other text outside the markers."
     )
 
     response = model.generate_content(
@@ -860,6 +917,7 @@ def generate_trilingual_matrix(model: genai.GenerativeModel, date: str) -> Trili
         "You are a professional language teacher fluent in English, Chinese, and Bahasa Melayu.\n"
         "Task: Generate a 'Trilingual Matrix' lesson for {date} covering three scenes: Work, Life, Tech.\n"
         "\n"
+        "Return ONLY valid JSON and wrap it between <<<JSON_START>>> and <<<JSON_END>>> markers.\n"
         "Output must be valid JSON with this structure:\n"
         "{\n"
         '  "title": "Trilingual Matrix: {date}",\n'
