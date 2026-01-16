@@ -7,22 +7,22 @@
 ## 2. 核心功能需求
 
 ### 2.1 数据源 (Data Source)
-- **目标网站**: Hacker News (使用官方 API 或者爬取 `https://news.ycombinator.com/`)。
-- **筛选逻辑**: 获取 "Top Stories" 中的前 5 篇文章。
-- **内容获取**: 对于每一篇文章，访问其 URL，并提取正文内容（需去除广告、导航栏等干扰信息）。
+- **目标网站**: Hacker News (使用官方 API)。
+- **筛选逻辑**: 获取 Top Stories 中的若干篇文章（默认由 `MAX_ARTICLES` 控制）。
+- **内容获取**: 访问每篇文章的 URL 并提取正文（去除广告、导航等干扰），仅用于 Tech 摘要。
 
 ### 2.2 AI 处理 (AI Processing) - 核心部分
-- **AI 模型**: 使用 Google Gemini API (推荐模型 `gemini-1.5-flash`，因为免费且速度快)。
+- **AI 模型**: 使用 Google Gemini API（推荐 `gemini-1.5-flash` 或 `gemini-1.5-flash-latest`）。
 - **Prompt 逻辑**:
-  对于每篇文章的内容，请 AI 执行以下任务并返回 JSON 格式：
-  1. **Summary (中文)**: 用通俗易懂的中文总结文章的 3 个核心技术知识点。
-  2. **Keywords (双语)**: 提取 2 个核心 IT 术语/概念，格式为 "英文术语: 中文解释"。
-  3. **One-liner (英文)**: 生成一句话的英文总结，用于练习英语阅读。
-  4. **Score**: 给文章的技术含金量打分 (1-5分)，便于我决定是否阅读原文。
+  对于每篇文章的内容，AI 应返回可解析的 JSON，包含：
+  1. **Summary (中文)**: 3 个简明中文要点。
+  2. **Keywords (双语)**: 2 个双语术语（英文 + 中文）。
+  3. **One-liner (英文)**: 一句英文摘要。
+  4. **Score**: 1–5 的评分，便于决定是否阅读全文。
 
 ### 2.3 数据存储 (Storage)
 - **平台**: Notion。
-- **操作**: 通过 Notion API 将处理后的数据插入到一个 Database 中。
+- **操作**: 通过 Notion API 将处理后的 Tech 内容插入到 Database。
 - **Notion Database 字段设计 (请在代码中匹配这些字段)**:
   - `Title` (Title类型): 文章标题
   - `URL` (URL类型): 原文链接
@@ -37,13 +37,12 @@
 - **环境**: Ubuntu Latest, Python 3.9+。
 
 ## 5. Implementation Notes & Robustness
-- 在 `main.py` 中实现 `worker_tech()` 与 `worker_lang()` 并且保证相互独立（异常捕获、单次失败不影响其他 worker）。
+- 项目已被精简为单一 `worker_tech()`，其他模块已从活动流程中移除以减少维护与配额消耗。
 - 对 Gemini 返回做严格校验：若 JSON 无法解析或模型返回空文本，使用安全 fallback（简短本地模板文本）并记录警告日志。
-- 对生成的 Language JSON 做 schema 校验，确保 `scenes` 长度为 3 且每个 `scene` 含 `quiz`。
-- Notion 写入：使用 block-level API（如果可用）或按文本把 Quiz 放入 Toggle 文本字段（尽量还原 Heading/Toggle 结构）。
+- Notion 写入：使用 block-level API 或富文本字段，保证可读性与去重性。
 - 环境变量（必须通过 os.environ 读取）：
   - `GEMINI_API_KEY`, `NOTION_TOKEN`, `NOTION_DATABASE_ID`, `GEMINI_MODEL`（可选）
-- 建议将 Tech 与 Language 的模型 key /配额分离（`GEMINI_API_KEY`, `LANG_GEMINI_KEY`）以避免配额冲突。
+  - 可通过 `RUN_ONLY` 环境变量临时控制要运行的 worker（工作流默认设置为 `RUN_ONLY=Tech`）。
 
 ## 6. 技术栈要求
 - **编程语言**: Python 3.9+

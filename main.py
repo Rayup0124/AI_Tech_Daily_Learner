@@ -11,7 +11,6 @@ import google.generativeai as genai
 from google.generativeai.types import GenerationConfig
 import requests
 from bs4 import BeautifulSoup
-import yfinance as yf
 
 # Hacker News API
 HN_TOP_STORIES_URL = "https://hacker-news.firebaseio.com/v0/topstories.json"
@@ -28,69 +27,13 @@ NOTION_VERSION = "2022-06-28"
 # Gemini Model
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
 
-# Stock codes (default Malaysia stocks)
-# 为了避免一次性触发太多 Gemini 调用，默认只分析一只股票；
-# 你可以在环境变量 STOCK_CODES 或这里自行增加。
-DEFAULT_STOCK_CODES = ["1155.KL"]
+# Stock analysis removed in Tech-only branch.
 
-# Reddit-based sources were removed to avoid API friction.
-# We now use local "seed" prompts to generate Cursor tips and Indie ideas
-# directly with Gemini (no external APIs).
-CURSOR_SUBREDDITS = ["cursor", "vscode", "programming"]  # kept for backward compat (unused)
-IDEA_SUBREDDITS = ["AppIdeas", "SideProject"]  # kept for backward compat (unused)
+# Cursor/Idea modules removed in Tech-only branch.
 
-# Cursor tips seed themes (one tip per seed, cycled by date)
-CURSOR_TIP_SEEDS = [
-    {
-        "slug": "daily-learning-workflow",
-        "title": "为自己设计 Cursor 每日学习流程",
-        "prompt": "Design a daily learning workflow using Cursor: review yesterday's code, ask AI to comment on weak spots, generate 1-2 micro tasks, and summarize new knowledge.",
-    },
-    {
-        "slug": "ai-edit-refactor",
-        "title": "用 AI Edit 快速重构函数",
-        "prompt": "Use Cursor's AI Edit to refactor a long Python function into smaller testable units, including how to write safe refactor prompts and verify changes with tests.",
-    },
-    {
-        "slug": "prompt-library",
-        "title": "建立自己的 Prompt Library",
-        "prompt": "Build a small prompt library inside Cursor or snippets so that common refactor / debug / explain prompts can be reused quickly every day.",
-    },
-    {
-        "slug": "debug-workflow",
-        "title": "将 Cursor 融入调试流程",
-        "prompt": "Combine traditional debugging tools with Cursor chat: letting AI explain stack traces, suggest hypotheses, and generate focused logging or assertions.",
-    },
-    {
-        "slug": "reading-source-code",
-        "title": "用 Cursor 阅读源码不迷路",
-        "prompt": "Use Cursor to navigate and understand unfamiliar open-source code bases, generating file overviews, call graphs, and learning checklists.",
-    },
-]
+# Cursor tips seeds removed (module disabled).
 
-# Indie / side‑project idea seeds
-IDEA_SEEDS = [
-    {
-        "slug": "dev-learning-coach",
-        "title": "程序员学习教练小助手",
-        "prompt": "A personal learning coach for developers that tracks what you learned each day, suggests spaced‑repetition reviews, and creates tiny weekend projects.",
-    },
-    {
-        "slug": "micro-saas-tracker",
-        "title": "Micro‑SaaS 收入追踪面板",
-        "prompt": "A dashboard for indie hackers to track revenue, churn and experiments across multiple tiny SaaS products, with AI suggesting next actions.",
-    },
-    {
-        "slug": "idea-validator",
-        "title": "应用想法快速验证工具",
-        "prompt": "A tool where you paste a new app idea and receive a quick validation: who needs it, minimum MVP scope, and 3 cheapest channels to find first users.",
-    },
-    {
-        "slug": "dev-log-to-newsletter",
-        "title": "把开发日志自动变成 Newsletter",
-        "prompt": "A service that turns a developer's daily changelog into a weekly email newsletter to followers, summarizing progress in human‑friendly language.",
-    },
-]
+# Idea seeds removed (module disabled).
 
 logging.basicConfig(
     level=logging.INFO,
@@ -110,13 +53,7 @@ class ArticlePayload:
     sentiment: Optional[str] = None  # Bullish 🟢, Bearish 🔴, Neutral ⚪ (only for Stock)
 
 
-@dataclass
-class TrilingualMatrixPayload:
-    """Payload for Trilingual Matrix (Language Learning) content."""
-    title: str
-    date: str
-    scenes: List[Dict[str, Any]]  # Each scene has name, register, and trilingual content
-    category: str = "Language"
+# TrilingualMatrixPayload removed (Language module disabled)
 
 
 class ConfigurationError(ValueError):
@@ -131,16 +68,10 @@ def require_env_var(name: str) -> str:
 
 
 def get_gemini_key(category: str) -> str:
-    """Get the appropriate Gemini API key for the category."""
-    if category == "Stock":
-        key = os.getenv("STOCK_GEMINI_KEY") or os.getenv("GEMINI_API_KEY")
-    elif category in ("Cursor", "Idea"):
-        key = os.getenv("CURSOR_GEMINI_KEY") or os.getenv("GEMINI_API_KEY")
-    else:  # Tech (default)
-        key = os.getenv("GEMINI_API_KEY")
-    
+    """Simplified: return primary GEMINI_API_KEY (multi-key support removed)."""
+    key = os.getenv("GEMINI_API_KEY")
     if not key:
-        raise ConfigurationError(f"No Gemini API key found for category '{category}'")
+        raise ConfigurationError("No Gemini API key found (GEMINI_API_KEY).")
     return key
 
 
@@ -180,6 +111,19 @@ def extract_response_text(response: Any) -> str:
     }
     reasons_msg = ", ".join(sorted(finish_reasons)) or "unknown"
     raise RuntimeError(f"Gemini returned no textual parts (finish_reason={reasons_msg}).")
+
+
+def should_run(worker_name: str) -> bool:
+    """
+    Decide whether a given worker should run based on the RUN_ONLY environment variable.
+    - If RUN_ONLY is not set, all workers run.
+    - RUN_ONLY may be a comma-separated list like "tech" or "tech,stock".
+    """
+    run_only = os.getenv("RUN_ONLY")
+    if not run_only:
+        return True
+    allowed = [w.strip().lower() for w in run_only.split(",") if w.strip()]
+    return worker_name.lower() in allowed
 
 
 def extract_json(raw_text: str) -> Dict[str, Any]:
@@ -471,31 +415,8 @@ def worker_tech(notion_token: str, notion_db_id: str) -> int:
 # ==================== Worker 2: Stock Analysis ====================
 
 def fetch_stock_data(stock_code: str) -> Optional[Dict[str, Any]]:
-    """Fetch stock data using yfinance."""
-    try:
-        ticker = yf.Ticker(stock_code)
-        info = ticker.info
-        hist = ticker.history(period="5d")
-        
-        if hist.empty:
-            return None
-
-        current_price = hist["Close"].iloc[-1]
-        prev_close = hist["Close"].iloc[-2] if len(hist) > 1 else current_price
-        change_pct = ((current_price - prev_close) / prev_close * 100) if prev_close > 0 else 0
-
-        return {
-            "symbol": stock_code,
-            "name": info.get("longName", stock_code),
-            "current_price": float(current_price),
-            "change_pct": float(change_pct),
-            "pe_ratio": info.get("trailingPE"),
-            "market_cap": info.get("marketCap"),
-            "volume": int(hist["Volume"].iloc[-1]) if "Volume" in hist.columns else None,
-        }
-    except Exception as err:
-        logging.warning("Failed to fetch stock data for %s: %s", stock_code, err)
-        return None
+    """Stock module removed in Tech-only branch."""
+    return None
 
 
 def analyze_stock(
@@ -876,7 +797,7 @@ def generate_trilingual_matrix(model: genai.GenerativeModel, date: str) -> Trili
         "- Each scene must have 2+ quiz items for active recall.\n"
         "- The JSON should be parseable.\n"
         "- Content should be practical and immediately usable."
-    ).format(date=date)
+    ).replace("{date}", date)
 
     try:
         response = model.generate_content(
@@ -1201,13 +1122,12 @@ def worker_lang(notion_token: str, notion_db_id: str) -> int:
 # ==================== Main Runner ====================
 
 def run() -> None:
-    """Run all workers."""
+    """Run Tech worker only (other modules removed)."""
     notion_token = require_env_var("NOTION_TOKEN")
     notion_db_id = require_env_var("NOTION_DATABASE_ID")
 
     total_processed = 0
 
-    # Worker 1: Tech
     logging.info("=== Starting Tech Worker ===")
     try:
         count = worker_tech(notion_token, notion_db_id)
@@ -1215,42 +1135,6 @@ def run() -> None:
         logging.info("Tech Worker completed: %s articles", count)
     except Exception as err:
         logging.exception("Tech Worker failed: %s", err)
-
-    # Worker 2: Stock
-    logging.info("=== Starting Stock Worker ===")
-    try:
-        count = worker_stock(notion_token, notion_db_id)
-        total_processed += count
-        logging.info("Stock Worker completed: %s analyses", count)
-    except Exception as err:
-        logging.exception("Stock Worker failed: %s", err)
-
-    # Worker 3: Cursor
-    logging.info("=== Starting Cursor Worker ===")
-    try:
-        count = worker_cursor(notion_token, notion_db_id)
-        total_processed += count
-        logging.info("Cursor Worker completed: %s tips", count)
-    except Exception as err:
-        logging.exception("Cursor Worker failed: %s", err)
-
-    # Worker 4: Idea
-    logging.info("=== Starting Idea Worker ===")
-    try:
-        count = worker_idea(notion_token, notion_db_id)
-        total_processed += count
-        logging.info("Idea Worker completed: %s ideas", count)
-    except Exception as err:
-        logging.exception("Idea Worker failed: %s", err)
-
-    # Worker 5: Language (Trilingual Matrix)
-    logging.info("=== Starting Language Worker ===")
-    try:
-        count = worker_lang(notion_token, notion_db_id)
-        total_processed += count
-        logging.info("Language Worker completed: %s matrices", count)
-    except Exception as err:
-        logging.exception("Language Worker failed: %s", err)
 
     logging.info("=== All Workers Completed ===")
     logging.info("Total items processed: %s", total_processed)

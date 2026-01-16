@@ -23,13 +23,9 @@ jobs:
       - name: Run daily script
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          STOCK_GEMINI_KEY: ${{ secrets.STOCK_GEMINI_KEY }}
-          CURSOR_GEMINI_KEY: ${{ secrets.CURSOR_GEMINI_KEY }}
-          LANG_GEMINI_KEY: ${{ secrets.LANG_GEMINI_KEY }}
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
           NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
-          # Use a model with higher free-tier quota to avoid quota errors
-          GEMINI_MODEL: "gemini-1.5-flash-latest"
-          STOCK_CODES: ${{ secrets.STOCK_CODES }}
+          # Use a model known to be supported for generateContent
+          GEMINI_MODEL: "gemini-1.5-flash"
         run: python main.py
 

@@ -7,28 +7,22 @@ Python automation that aggregates multi-dimensional intelligence data (Tech arti
 
 ## Features
 
-### V3 Multi-Dimensional Data
-- **💻 Tech Daily**: Pulls top 5 Hacker News stories, summarizes with bilingual learning nuggets
-- **📈 Market Watch**: Analyzes Malaysian stocks (default: Maybank, Petronas Chem, CIMB) with AI-powered sentiment analysis
-- **🖱️ Cursor Tips**: Generates daily Cursor productivity tips (no Reddit required)
-- **💡 App Ideas**: Generates daily indie-dev inspiration + MVP suggestions (no Reddit required)
+### V3 (trimmed) — Tech Daily only
+- **💻 Tech Daily**: Pulls top Hacker News stories and summarizes them into bilingual learning nuggets (Chinese summary + English one-liner). All other modules (Market Watch / Cursor Tips / App Ideas / Language Matrix) have been removed to simplify the project and focus on Tech Daily.
 
 ### AI Processing
-- Uses Google Gemini (`gemini-1.5-flash` by default) to create Chinese summaries, bilingual keywords, English one-liners, and 1–5 scores
-- **Multi-Key Support**: Use separate Gemini API keys for different categories to avoid quota conflicts
-- Category-specific AI prompts (financial analyst for stocks, senior developer for Cursor, product manager for ideas)
+- Uses Google Gemini (`gemini-1.5-flash` by default) to create Chinese summaries, bilingual keywords, English one-liners, and 1–5 scores for Tech articles.
+- The project has been simplified: only the Tech worker is active. You may still provide alternative Gemini models via `GEMINI_MODEL` if needed.
 
 ### Data Storage
-- Pushes all content into Notion with clean formatting and emoji accents
-- Automatic deduplication by URL
-- Category and Sentiment (for stocks) tagging
+- Pushes Tech Daily content into Notion with clean formatting and emoji accents.
+- Automatic deduplication by URL.
+- The Notion schema should include `Category` (single select) so entries are marked `Tech`.
 
 ### Web Dashboard
-- **👉 [Live Dashboard](https://ai-tech-daily-learner.vercel.app/)**
-- Tab-based navigation with category-specific theme colors
-- Mark articles as read/unread (saved per device in browser)
-- Auto-refreshes every 5 minutes
-- Responsive design for mobile and desktop
+- **👉 [Live Dashboard](https://ai-tech-daily-learner.vercel.app/)** — simplified to show Tech Daily content only.
+- Mark articles as read/unread (saved per device in browser).
+- Auto-refreshes every 5 minutes and is responsive for mobile and desktop.
 
 ## 1. Prerequisites
 - Python 3.9+
@@ -66,19 +60,12 @@ Python automation that aggregates multi-dimensional intelligence data (Tech arti
 4. **Set required environment variables**
    ```bash
    # Required
-   GEMINI_API_KEY=<your_gemini_key>              # For Tech (default)
+   GEMINI_API_KEY=<your_gemini_key>
    NOTION_TOKEN=<secret_notion_integration_token>
    NOTION_DATABASE_ID=<target_database_id>
 
-   # Optional (for multi-key setup - recommended)
-   STOCK_GEMINI_KEY=<stock_gemini_key>           # For Stock analysis
-   CURSOR_GEMINI_KEY=<cursor_gemini_key>          # For Cursor and Idea
-
-   # Optional (for stock codes)
-   STOCK_CODES=1155.KL,5183.KL,1023.KL           # Default: Maybank, Petronas Chem, CIMB
-
-   # Optional (for Gemini model)
-   GEMINI_MODEL=gemini-1.5-flash                 # Default model
+   # Optional
+   GEMINI_MODEL=gemini-1.5-flash                 # Default model; you can override (e.g. gemini-1.5-flash-latest)
    ```
 
    You can place them in your shell profile, a `.env` loader, or directly in GitHub Secrets (see below).
@@ -155,44 +142,26 @@ If you host this project on GitHub to leverage the daily workflow:
 - Schedule: `0 0 * * *` (00:00 UTC daily).
 - Runner: `ubuntu-latest`.
 - Steps: checkout → set up Python → install deps (`worker-requirements.txt`) → run `python main.py`.
-- The workflow automatically uses the secrets configured above.
+- To ensure only Tech worker runs in automated runs, the workflow sets `RUN_ONLY: "Tech"`. Locally you can run the full script with `python main.py`.
 
 ## 8. Workers Overview
 
-### Worker 1: Tech News
+### Worker: Tech News
 - **Source**: Hacker News Top Stories
 - **Category**: `Tech`
 - **Key**: `GEMINI_API_KEY`
-- Processes top 5 stories daily
+- Processes top Hacker News stories daily and pushes bilingual summaries to Notion.
 
-### Worker 2: Stock Analysis
-- **Source**: Yahoo Finance (via `yfinance`)
-- **Category**: `Stock`
-- **Key**: `STOCK_GEMINI_KEY` (falls back to `GEMINI_API_KEY`)
-- **Default Stocks**: `1155.KL` (Maybank), `5183.KL` (Petronas Chem), `1023.KL` (CIMB)
-- **Output**: Includes `Sentiment` (Bullish 🟢 / Bearish 🔴 / Neutral ⚪)
-
-### Worker 3: Cursor Tips
-- **Source**: Local seed themes + Gemini (no external API)
-- **Category**: `Cursor`
-- **Key**: `CURSOR_GEMINI_KEY` (falls back to `GEMINI_API_KEY`)
-- **Output**: 1–2 tips per run (rotates by date)
-
-### Worker 4: Indie Ideas
-- **Source**: Local seed themes + Gemini (no external API)
-- **Category**: `Idea`
-- **Key**: `CURSOR_GEMINI_KEY` (falls back to `GEMINI_API_KEY`)
-- **Output**: Includes MVP tech stack recommendation in one-liner
+Note: Other modules (Stock Analysis, Cursor Tips, Indie Ideas, Language Matrix) have been removed from the project to keep the codebase focused on Tech Daily.
 
 ## 9. Troubleshooting & Tips
 
-- **Missing env vars**: Workers without required keys will be skipped with a warning.
-- **Article scrape fails**: The script logs the error and moves to the next item.
-- **Gemini JSON errors**: Ensure the model has access (some regions require a VPN) and retry; intermittent hiccups are common.
-- **Notion rejects request**: Confirm the integration has edit access and the property names match exactly (especially `Category` and `Sentiment`).
-- **Quota exceeded (429)**: Reduce the number of items per run or switch to a lighter model (e.g. `gemini-flash-latest`).
-- **Stock data unavailable**: Some stocks may not have data available; the worker will skip them.
-- **Local testing without automation**: Run `python main.py` anytime—the job is idempotent because it checks for duplicate URLs before pushing.
+-- **Missing env vars**: The Tech worker requires `GEMINI_API_KEY`, `NOTION_TOKEN`, and `NOTION_DATABASE_ID`. The script will raise a configuration error if any is missing.
+-- **Article scrape fails**: The script logs the error and moves to the next item.
+-- **Gemini JSON errors**: Ensure the model has access and retry; intermittent hiccups are common.
+-- **Notion rejects request**: Confirm the integration has edit access and the property names match exactly (especially `Category`).
+-- **Quota exceeded (429)**: Reduce the number of items per run or switch to a lighter model (e.g. `gemini-flash-latest`).
+-- **Local testing without automation**: Run `python main.py` anytime—the job is idempotent because it checks for duplicate URLs before pushing.
 
 ## 10. Web Dashboard Features
 

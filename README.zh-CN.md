@@ -9,20 +9,16 @@
 
 ## 功能一览
 
-### V3 多维内容
-- **💻 Tech Daily**：抓取 Hacker News 热门文章并生成双语学习小抄
-- **📈 Market Watch**：分析你关注的股票（默认马股代码可配置），生成情绪与要点
-- **🖱️ Cursor Tips**：每日生成 Cursor 生产力技巧（不需要 Reddit）
-- **💡 App Ideas**：每日生成独立开发灵感 + MVP 建议（不需要 Reddit）
+### V3（精简版）— 仅保留 Tech Daily
+- **💻 Tech Daily**：抓取 Hacker News 热门文章并生成双语学习小抄（中文要点 + 英文一句话）。为简化项目，其他模块（Market Watch / Cursor Tips / App Ideas / Language Matrix）已移除。
 
 ### AI 处理
-- 使用 Google Gemini 生成：中文要点、双语关键词、英文一句话、1–5 分评分
-- **多 Key 支持**：可为不同分类配置不同 Gemini Key，避免互相抢额度
-- 每个分类使用不同提示词（股票分析/开发技巧/产品经理等）
+- 使用 Google Gemini 生成：中文要点、双语关键词、英文一句话、1–5 分评分（仅用于 Tech 文章）。
+- 项目已简化：仅保留 Tech worker。你可以通过 `GEMINI_MODEL` 覆盖默认模型以调整生成效果。
 
 ### Notion 存储
 - 写入 Notion 数据库（自动去重：按 URL 不重复写入）
-- 支持 `Category`、股票支持 `Sentiment` 字段
+- 请在数据库中保留 `Category` 字段并确保包含 `Tech` 选项。
 
 ### Web Dashboard
 - Tab 切换（Tech/Stock/Cursor/Idea）+ 每个分类不同主题色
@@ -67,15 +63,8 @@ pip install -r worker-requirements.txt
 - `NOTION_TOKEN`
 - `NOTION_DATABASE_ID`
 
-可选（推荐，多 Key）：
-- `STOCK_GEMINI_KEY`：股票分析专用
-- `CURSOR_GEMINI_KEY`：Cursor/Idea 专用
-
-可选（自定义股票）：
-- `STOCK_CODES`：例如 `1155.KL,5183.KL,1295.KL`
-
-可选（模型）：
-- `GEMINI_MODEL`：例如 `gemini-flash-latest`
+可选：
+- `GEMINI_MODEL`：例如 `gemini-1.5-flash`（可覆盖为 `gemini-1.5-flash-latest`）
 
 5. **运行**
 
@@ -105,24 +94,15 @@ python main.py
    - `GEMINI_API_KEY`
    - `NOTION_TOKEN`
    - `NOTION_DATABASE_ID`
-3. 可选添加：
-   - `STOCK_GEMINI_KEY`
-   - `CURSOR_GEMINI_KEY`
-   - `STOCK_CODES`
+3. 可选：
    - `GEMINI_MODEL`
 
 工作流文件：`.github/workflows/daily_run.yml`  
-默认每天 UTC 00:00 执行。
+默认每天 UTC 00:00 执行；工作流会通过 `RUN_ONLY: "Tech"` 保证自动运行时只执行 Tech worker。
 
 ## 5. 部署 Web Dashboard（Vercel）
 
-Web 端只需要轻量依赖（见 `requirements.txt`），不会把完整 AI/财经依赖打进函数里，避免超过 Vercel 250MB 限制。
-
-部署后访问首页即可浏览：
-- `Tech Daily`
-- `Market Watch`
-- `Cursor Tips`
-- `App Ideas`
+Web 端只需要轻量依赖（见 `requirements.txt`）。部署后主要用于浏览 `Tech Daily` 内容。
 
 ---
 
