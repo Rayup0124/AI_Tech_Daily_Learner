@@ -53,7 +53,13 @@ class ArticlePayload:
     sentiment: Optional[str] = None  # Bullish 🟢, Bearish 🔴, Neutral ⚪ (only for Stock)
 
 
-# TrilingualMatrixPayload removed (Language module disabled)
+@dataclass
+class TrilingualMatrixPayload:
+    """Payload for Trilingual Matrix (Language Learning) content."""
+    title: str
+    date: str
+    scenes: List[Dict[str, Any]]  # Each scene has name, register, and trilingual content
+    category: str = "Language"
 
 
 class ConfigurationError(ValueError):
