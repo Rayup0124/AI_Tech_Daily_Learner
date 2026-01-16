@@ -176,7 +176,37 @@ def extract_json(raw_text: str) -> Dict[str, Any]:
                     break
 
     if end_idx == -1:
-        raise ValueError("Could not find balanced JSON object in model response.")
+        # If we couldn't find a balanced JSON (likely truncated output),
+        # attempt a best-effort recovery by taking the rest of the text
+        # starting at the first '{' and appending closing braces to balance.
+        candidate = raw_text[start_idx:]
+        # Re-scan candidate to compute unclosed depth while ignoring strings.
+        in_string = False
+        escape = False
+        depth = 0
+        for ch in candidate:
+            if in_string:
+                if escape:
+                    escape = False
+                elif ch == "\\":
+                    escape = True
+                elif ch == '"':
+                    in_string = False
+                continue
+            else:
+                if ch == '"':
+                    in_string = True
+                    continue
+                if ch == "{":
+                    depth += 1
+                elif ch == "}":
+                    depth -= 1
+        # If depth > 0, append the required number of closing braces
+        if depth > 0:
+            candidate = candidate + ("}" * depth)
+        else:
+            # Nothing to balance automatically
+            raise ValueError("Could not find balanced JSON object in model response.")
 
     candidate = raw_text[start_idx : end_idx + 1]
 
@@ -190,7 +220,7 @@ def extract_json(raw_text: str) -> Dict[str, Any]:
         return json.loads(candidate)
     except json.JSONDecodeError as err:
         # If still failing, include candidate in error for debugging
-        raise ValueError(f"Failed to parse extracted JSON: {err}; candidate starts with: {candidate[:200]!r}")
+        raise ValueError(f"Failed to parse extracted JSON: {err}; candidate starts with: {candidate[:400]!r}")
 
 
 def check_url_exists(notion_token: str, database_id: str, url: str) -> bool:
