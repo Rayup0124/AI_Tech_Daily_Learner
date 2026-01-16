@@ -134,15 +134,63 @@ def should_run(worker_name: str) -> bool:
 
 def extract_json(raw_text: str) -> Dict[str, Any]:
     """Extract JSON from raw text, handling markdown fences."""
+    import re
+
     raw_text = raw_text.strip()
+    # Fast path: try direct load
     try:
         return json.loads(raw_text)
     except json.JSONDecodeError:
-        start = raw_text.find("{")
-        end = raw_text.rfind("}")
-        if start != -1 and end != -1:
-            return json.loads(raw_text[start : end + 1])
-        raise
+        pass
+
+    # Find the first balanced JSON object using a small state machine that
+    # ignores braces appearing inside strings.
+    start_idx = raw_text.find("{")
+    if start_idx == -1:
+        raise ValueError("No JSON object found in model response.")
+
+    in_string = False
+    escape = False
+    depth = 0
+    end_idx = -1
+    for i in range(start_idx, len(raw_text)):
+        ch = raw_text[i]
+        if in_string:
+            if escape:
+                escape = False
+            elif ch == "\\":
+                escape = True
+            elif ch == '"':
+                in_string = False
+            continue
+        else:
+            if ch == '"':
+                in_string = True
+                continue
+            if ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    end_idx = i
+                    break
+
+    if end_idx == -1:
+        raise ValueError("Could not find balanced JSON object in model response.")
+
+    candidate = raw_text[start_idx : end_idx + 1]
+
+    # Sanitize: remove trailing commas before } or ]
+    candidate = re.sub(r",\s*([}\]])", r"\1", candidate)
+    # Also remove common markdown fences around JSON if present
+    candidate = re.sub(r"```json\s*", "", candidate, flags=re.IGNORECASE)
+    candidate = re.sub(r"```", "", candidate)
+
+    try:
+        return json.loads(candidate)
+    except json.JSONDecodeError as err:
+        # If still failing, include candidate in error for debugging
+        raise ValueError(f"Failed to parse extracted JSON: {err}; candidate starts with: {candidate[:200]!r}")
 
 
 def check_url_exists(notion_token: str, database_id: str, url: str) -> bool:
