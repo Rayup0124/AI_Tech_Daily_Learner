@@ -182,16 +182,28 @@ def extract_json(raw_text: str) -> Dict[str, Any]:
     import re
 
     raw_text = raw_text.strip()
-    # If model wraps JSON in explicit markers, extract that first.
-    marker_match = re.search(r"<<<\s*JSON_START\s*>>>([\s\S]*?)<<<\s*JSON_END\s*>>>", raw_text, flags=re.IGNORECASE)
-    if marker_match:
-        candidate = marker_match.group(1).strip()
-        # sanitize and parse quickly
-        candidate = re.sub(r",\s*([}\]])", r"\1", candidate)
-        try:
-            return json.loads(candidate)
-        except json.JSONDecodeError as err:
-            raise ValueError(f"Failed to parse JSON between markers: {err}; candidate starts with: {candidate[:400]!r}")
+    # If model uses JSON_START marker, try to extract from that point even if end marker is missing.
+    start_token_re = re.search(r"<<<\s*JSON_START\s*>>>", raw_text, flags=re.IGNORECASE)
+    if start_token_re:
+        start_pos = start_token_re.end()
+        # try to find explicit end marker
+        end_match = re.search(r"<<<\s*JSON_END\s*>>>", raw_text[start_pos:], flags=re.IGNORECASE)
+        if end_match:
+            candidate = raw_text[start_pos : start_pos + end_match.start()]
+            candidate = candidate.strip()
+            candidate = re.sub(r",\s*([}\]])", r"\1", candidate)
+            try:
+                return json.loads(candidate)
+            except json.JSONDecodeError as err:
+                raise ValueError(f"Failed to parse JSON between markers: {err}; candidate starts with: {candidate[:400]!r}")
+        else:
+            # No explicit end marker — attempt balanced-brace extraction starting from after marker.
+            start_idx = raw_text.find("{", start_pos)
+            if start_idx != -1:
+                # fall through to balanced-brace logic below using this start_idx
+                pass
+            else:
+                raise ValueError("JSON_START marker present but no JSON object found after marker.")
     # Fast path: try direct load
     try:
         return json.loads(raw_text)
