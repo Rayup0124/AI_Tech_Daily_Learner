@@ -283,7 +283,8 @@ def fetch_article_content(url: str, retries: int = 2, delay_seconds: int = 3) ->
     for attempt in range(retries + 1):
         try:
             logging.info("Fetching article body (%s)...", url)
-            response = requests.get(url, timeout=15)
+            headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0 Safari/537.36"}
+            response = requests.get(url, timeout=15, headers=headers)
             response.raise_for_status()
             return extract_clean_text(response.text)
         except Exception as err:
@@ -328,6 +329,7 @@ def summarize_tech_article(
     )
 
     try:
+        # First attempt
         response = model.generate_content(
             [
                 prompt,
@@ -337,11 +339,33 @@ def summarize_tech_article(
             ],
             generation_config=GenerationConfig(
                 temperature=0.4,
-                max_output_tokens=256,
+                max_output_tokens=512,
                 response_mime_type="application/json",
             ),
         )
-        json_payload = extract_json(extract_response_text(response))
+        raw_text = ""
+        try:
+            raw_text = extract_response_text(response)
+        except Exception as e:
+            # If no textual parts, log and attempt one retry with larger token budget
+            logging.warning("Initial Gemini response issue for '%s': %s", title, e)
+            # Retry with larger token limit
+            response = model.generate_content(
+                [
+                    prompt,
+                    f"Article title: {title}",
+                    "Article body:",
+                    article_text,
+                ],
+                generation_config=GenerationConfig(
+                    temperature=0.4,
+                    max_output_tokens=1024,
+                    response_mime_type="application/json",
+                ),
+            )
+            raw_text = extract_response_text(response)
+        logging.info("Tech model raw response preview: %s", raw_text[:1000])
+        json_payload = extract_json(raw_text)
         summary_points = json_payload.get("summary_points", [])
         keywords = json_payload.get("keywords", [])
         one_liner = json_payload.get("one_liner", "")
@@ -810,11 +834,25 @@ def generate_trilingual_matrix(model: genai.GenerativeModel, date: str) -> Trili
             [prompt],
             generation_config=GenerationConfig(
                 temperature=0.6,
-                max_output_tokens=1024,
+                max_output_tokens=2048,
                 response_mime_type="application/json",
             ),
         )
-        raw_text = extract_response_text(response)
+        raw_text = ""
+        try:
+            raw_text = extract_response_text(response)
+        except Exception as e:
+            logging.warning("Initial language model response issue: %s", e)
+            # Retry once with larger token budget
+            response = model.generate_content(
+                [prompt],
+                generation_config=GenerationConfig(
+                    temperature=0.6,
+                    max_output_tokens=4096,
+                    response_mime_type="application/json",
+                ),
+            )
+            raw_text = extract_response_text(response)
         # Log a truncated preview of the raw response to help debug model outputs
         logging.info("Language model raw response preview: %s", raw_text[:2000])
         try:
