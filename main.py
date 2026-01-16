@@ -183,7 +183,7 @@ def extract_json(raw_text: str) -> Dict[str, Any]:
 
     raw_text = raw_text.strip()
     # If model wraps JSON in explicit markers, extract that first.
-    marker_match = re.search(r"<<<\s*JSON_START\s*>>>([\\s\\S]*?)<<<\s*JSON_END\s*>>>", raw_text, flags=re.IGNORECASE)
+    marker_match = re.search(r"<<<\s*JSON_START\s*>>>([\s\S]*?)<<<\s*JSON_END\s*>>>", raw_text, flags=re.IGNORECASE)
     if marker_match:
         candidate = marker_match.group(1).strip()
         # sanitize and parse quickly
