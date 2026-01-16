@@ -478,6 +478,8 @@ def summarize_tech_article(
                 response_mime_type="application/json",
             ),
         )
+        # Log full structured Gemini response for diagnostics
+        log_full_gemini_response(response, context=f"summarize_tech_article initial: {title}")
         raw_text = ""
         try:
             raw_text = extract_response_text(response)
@@ -498,6 +500,7 @@ def summarize_tech_article(
                     response_mime_type="application/json",
                 ),
             )
+            log_full_gemini_response(response, context=f"summarize_tech_article retry: {title}")
             raw_text = extract_response_text(response)
         logging.info("Tech model raw response preview: %s", raw_text[:1000])
         json_payload = extract_json(raw_text)
@@ -624,6 +627,7 @@ def analyze_stock(
                 response_mime_type="application/json",
             ),
         )
+        log_full_gemini_response(response, context=f"analyze_stock: {stock_data.get('symbol')}")
         json_payload = extract_json(extract_response_text(response))
         summary_points = json_payload.get("summary_points", [])
         keywords = json_payload.get("keywords", [])
@@ -746,6 +750,7 @@ def generate_cursor_tip_from_seed(
                 response_mime_type="application/json",
             ),
         )
+        log_full_gemini_response(response, context=f"generate_cursor_tip_from_seed: {seed.get('slug')}")
         json_payload = extract_json(extract_response_text(response))
         summary_points = json_payload.get("summary_points", [])
         keywords = json_payload.get("keywords", [])
@@ -838,6 +843,7 @@ def analyze_idea(
             response_mime_type="application/json",
         ),
     )
+    log_full_gemini_response(response, context=f"analyze_idea: {title}")
     json_payload = extract_json(extract_response_text(response))
     summary_points = json_payload.get("summary_points", [])
     keywords = json_payload.get("keywords", [])
@@ -974,6 +980,7 @@ def generate_trilingual_matrix(model: genai.GenerativeModel, date: str) -> Trili
                 response_mime_type="application/json",
             ),
         )
+        log_full_gemini_response(response, context=f"generate_trilingual_matrix initial: {date}")
         raw_text = ""
         try:
             raw_text = extract_response_text(response)
@@ -988,6 +995,7 @@ def generate_trilingual_matrix(model: genai.GenerativeModel, date: str) -> Trili
                     response_mime_type="application/json",
                 ),
             )
+            log_full_gemini_response(response, context=f"generate_trilingual_matrix retry: {date}")
             raw_text = extract_response_text(response)
         # Log a truncated preview of the raw response to help debug model outputs
         logging.info("Language model raw response preview: %s", raw_text[:2000])
